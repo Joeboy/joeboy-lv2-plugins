@@ -1,0 +1,23 @@
+@prefix lv2:  <http://lv2plug.in/ns/lv2core#>.
+@prefix doap: <http://usefulinc.com/ns/doap#>.
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+
+<http://www.joebutton.co.uk/software/lv2/pitchdetect>
+  a lv2:Plugin, lv2:AnalyserPlugin;
+  doap:name "PitchDetect";
+  doap:license <http://usefulinc.com/doap/licenses/gpl>;
+
+  lv2:port [
+    a lv2:AudioPort, lv2:InputPort;
+    lv2:index 0;
+    lv2:symbol "input";
+    lv2:name "Input";
+  ],
+
+  [
+    a lv2:AudioPort, lv2:OutputPort;
+    lv2:index 1;
+    lv2:symbol "output";
+    lv2:name "Output";
+  ].

@@ -1,0 +1,33 @@
+An assortment of LV2 plugins
+============================
+
+fluidsynth
+----------
+
+An effort at an LV2 version of the Fluidsynth synthesizer. Is kind of working
+(you can play soundfonts), but the soundfont file path is hard-coded and you can
+only select patches by number.
+
+pitchdetect
+-----------
+
+Uses libaubio to convert incoming audio to pitch data. Unfortunately requires
+a version of libaubio that's only currently available in git. It'll be 0.4
+when it's finally released. See http://www.youtube.com/watch?v=unM7bd0GZ0Y
+to see it working.
+
+shimmer
+-------
+
+A very simple tremolo type effect.
+
+visual_compressor
+-----------------
+
+An effort at a compressor with visual feedback. 
+
+amp_with_gui
+------------
+
+A very simple amp plugin with a gtk gui. Largely pointless in itself, but
+worth a look if you want a simple example of an LV2 gui.

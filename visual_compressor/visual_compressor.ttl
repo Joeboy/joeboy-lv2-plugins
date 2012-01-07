@@ -1,0 +1,116 @@
+@prefix lv2:  <http://lv2plug.in/ns/lv2core#>.
+@prefix doap: <http://usefulinc.com/ns/doap#>.
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix ll: <http://ll-plugins.nongnu.org/lv2/namespace#>.
+@prefix guiext: <http://lv2plug.in/ns/extensions/ui#>.
+
+<http://www.joebutton.co.uk/software/lv2/visual_compressor/gui>
+  a guiext:GtkUI;
+  guiext:binary <visual_compressor_gui.so>;
+  guiext:requiredFeature guiext:makeResident.
+
+<http://www.joebutton.co.uk/software/lv2/visual_compressor>
+  a lv2:Plugin, lv2:CompressorPlugin;
+  doap:name "Visual Compressor";
+  doap:license <http://usefulinc.com/doap/licenses/gpl>;
+  ll:pegName "p";
+  guiext:ui <http://www.joebutton.co.uk/software/lv2/visual_compressor/gui>;
+
+  lv2:port [
+    a lv2:AudioPort, lv2:InputPort;
+    lv2:index 0;
+    lv2:symbol "input";
+    lv2:name "Input";
+  ],
+
+  [
+    a lv2:AudioPort, lv2:OutputPort;
+    lv2:index 1;
+    lv2:symbol "output";
+    lv2:name "Output";
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 2;
+    lv2:symbol "threshold";
+    lv2:name "Threshold";
+    lv2:minimum -30;
+    lv2:maximum 0;
+    lv2:default -5;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 3;
+    lv2:symbol "ratio";
+    lv2:name "Ratio";
+    lv2:minimum 1;
+    lv2:maximum 20;
+    lv2:default 2;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 8;
+    lv2:symbol "attack_time";
+    lv2:name "Attack time";
+    lv2:minimum 0.01;
+    lv2:maximum 1;
+    lv2:default 0.1;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 9;
+    lv2:symbol "release_time";
+    lv2:name "Release time";
+    lv2:minimum 0.01;
+    lv2:maximum 1;
+    lv2:default 0.1;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 4;
+    lv2:symbol "input_gain";
+    lv2:name "Input gain";
+    lv2:minimum 0;
+    lv2:maximum 20;
+    lv2:default 0;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 5;
+    lv2:symbol "makeup_gain";
+    lv2:name "Makeup gain";
+    lv2:minimum 0;
+    lv2:maximum 20;
+    lv2:default 0;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:InputPort;
+    lv2:index 6;
+    lv2:symbol "knee_radius";
+    lv2:name "Knee radius";
+    lv2:minimum 1;
+    lv2:maximum 10;
+    lv2:default 1;
+  ],
+
+  [
+    a lv2:ControlPort, lv2:OutputPort;
+    lv2:index 7;
+    lv2:symbol "rms";
+    lv2:name "Rms";
+  ],
+
+  [
+    a lv2:ControlPort, lv2:OutputPort;
+    lv2:index 10;
+    lv2:symbol "gain";
+    lv2:name "Gain";
+  ].
