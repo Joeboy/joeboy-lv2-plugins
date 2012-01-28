@@ -3,7 +3,7 @@
 #include <fluidsynth.h>
 #include "event.h"
 #include "event-helpers.h"
-#include "uri-map.h"
+#include "urid.h"
 #include "fluidsynth.h"
 
 
@@ -65,17 +65,15 @@ static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double samp
     fluid_synth_sfload(plugin_data->synth, "/usr/share/sounds/sf2/FluidR3_GM.sf2", 1);
     plugin_data->samples_per_tick = sample_rate/FLUID_TIME_SCALE;
 
-    LV2_URI_Map_Feature *map_feature;
-    const LV2_Feature * const *  i;
-    for (i = features; *i; i++) {
-        if (!strcmp((*i)->URI, "http://lv2plug.in/ns/ext/uri-map")) {
-          map_feature = (*i)->data;
-          plugin_data->midi_event_id = map_feature->uri_to_id(map_feature->callback_data,
-                                                          LV2_EVENT_URI,
-                                                          LV2_MIDI_EVENT_URI);
+    LV2_URID_Map* map_feature;
+    int j;
+    for (j =0; features[j]; j++) {
+        if (!strcmp(features[j]->URI, "http://lv2plug.in/ns/ext/urid#map")) {
+          map_feature = (LV2_URID_Map*)features[j]->data;
+          plugin_data->midi_event_id = map_feature->map(map_feature->handle,
+                                                        LV2_MIDI_EVENT_URI);
         }
     }
-
 
     return (LV2_Handle)plugin_data;
 }
