@@ -1,11 +1,15 @@
-#define FLUIDSYNTH_URI       "http://www.joebutton.co.uk/software/lv2/fluidsynth"
+// LV2 extensions
+#define FLUIDSYNTH_URI          "http://www.joebutton.co.uk/software/lv2/fluidsynth"
 #define FLUIDSYNTH_UI_URI       "http://www.joebutton.co.uk/software/lv2/fluidsynth/gui"
-#define MIDI         0
-#define CHAN1PROGRAM 1
-#define LEFT         2
-#define RIGHT        3
+#define LV2_MIDI_EVENT_URI      "http://lv2plug.in/ns/ext/midi#MidiEvent"
 
-#define FLUID_TIME_SCALE 1000
+// Ports
+#define MIDI                    0
+#define CHAN1PROGRAM            1
+#define LEFT                    2
+#define RIGHT                   3
+
+#define FLUID_TIME_SCALE        1000
 
 // MIDI opcodes
 #define NOTE_OFF                0x80

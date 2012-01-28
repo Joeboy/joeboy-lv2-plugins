@@ -71,8 +71,8 @@ static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double samp
         if (!strcmp((*i)->URI, "http://lv2plug.in/ns/ext/uri-map")) {
           map_feature = (*i)->data;
           plugin_data->midi_event_id = map_feature->uri_to_id(map_feature->callback_data,
-                                                          "http://lv2plug.in/ns/ext/event",
-                                                          "http://lv2plug.in/ns/ext/midi#MidiEvent");
+                                                          LV2_EVENT_URI,
+                                                          LV2_MIDI_EVENT_URI);
         }
     }
 
