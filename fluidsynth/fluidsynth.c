@@ -13,13 +13,15 @@ typedef struct {
     LV2_Event_Buffer *midi;
     LV2_Event_Iterator event_iter;
     float *chan1program;
+    bool program_is_ready;
+    float prev_program;
     float *left;
     float *right;
     fluid_settings_t* settings;
     fluid_synth_t* synth;
     fluid_sequencer_t* sequencer;
     short synthSeqId;
-    int midi_event_id;
+    LV2_URID midi_event_id;
     unsigned int samples_per_tick;
 } FluidSynth;
 
@@ -62,18 +64,24 @@ static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double samp
     plugin_data->synth = new_fluid_synth(plugin_data->settings);
     plugin_data->sequencer = new_fluid_sequencer2(true);
     plugin_data->synthSeqId = fluid_sequencer_register_fluidsynth(plugin_data->sequencer, plugin_data->synth);
+    // TODO: unhardcode this and move it somewhere useful
     fluid_synth_sfload(plugin_data->synth, "/usr/share/sounds/sf2/FluidR3_GM.sf2", 1);
+    plugin_data->program_is_ready = true;
     plugin_data->samples_per_tick = sample_rate/FLUID_TIME_SCALE;
 
     LV2_URID_Map* map_feature;
     int j;
     for (j =0; features[j]; j++) {
+        printf("%s\n", features[j]->URI);
         if (!strcmp(features[j]->URI, "http://lv2plug.in/ns/ext/urid#map")) {
-          map_feature = (LV2_URID_Map*)features[j]->data;
-          plugin_data->midi_event_id = map_feature->map(map_feature->handle,
-                                                        LV2_MIDI_EVENT_URI);
+            map_feature = (LV2_URID_Map*)features[j]->data;
+            plugin_data->midi_event_id = map_feature->map(map_feature->handle,
+                                                          LV2_MIDI_EVENT_URI);
         }
     }
+
+    // bodge that seems to happen to work in calfjackhost:
+    if (!plugin_data->midi_event_id) plugin_data->midi_event_id = 1;
 
     return (LV2_Handle)plugin_data;
 }
@@ -82,17 +90,16 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
     fluid_event_t* fluid_evt;
     unsigned int chan;
     unsigned int when;
-    int unhandled_opcode;
+    bool unhandled_opcode;
     uint8_t* midi_data;
     LV2_Event* lv2_evt;
-    static float prev_program = 0;
 
     FluidSynth *plugin_data = (FluidSynth*)instance;
     lv2_event_begin(&plugin_data->event_iter, plugin_data->midi);
     
-    if (*plugin_data->chan1program != prev_program) {
+    if (*plugin_data->chan1program != plugin_data->prev_program) {
         fluid_synth_program_change(plugin_data->synth, 0, (int)*plugin_data->chan1program);
-        prev_program = *plugin_data->chan1program;
+        plugin_data->prev_program = *plugin_data->chan1program;
     }
 
     while (lv2_event_is_valid(&plugin_data->event_iter)) {
@@ -100,6 +107,10 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
         lv2_event_increment(&plugin_data->event_iter);
 
         if (lv2_evt->type == plugin_data->midi_event_id) {
+            if (!plugin_data->program_is_ready) {
+                printf("program not ready\n");
+                return;
+            }
 
             fluid_evt = new_fluid_event();
             fluid_event_set_source(fluid_evt, -1);
