@@ -1,28 +1,25 @@
 #include <lv2.h>
 #include <malloc.h>
 #include <fluidsynth.h>
-#include "event.h"
-#include "event-helpers.h"
 #include "urid.h"
 #include "fluidsynth.h"
+#include "lv2/lv2plug.in/ns/ext/atom/atom-helpers.h"
 
 
 static LV2_Descriptor *fluidDescriptor = NULL;
 
 typedef struct {
-    LV2_Event_Buffer *midi;
-    LV2_Event_Iterator event_iter;
-    float *chan1program;
-    bool program_is_ready;
-    float prev_program;
-    float *left;
-    float *right;
+    LV2_Atom_Sequence* midi_in;
+    float* left;
+    float* right;
+
     fluid_settings_t* settings;
     fluid_synth_t* synth;
     fluid_sequencer_t* sequencer;
     short synthSeqId;
     LV2_URID midi_event_id;
     unsigned int samples_per_tick;
+    bool program_is_ready;
 } FluidSynth;
 
 static void cleanupFluidSynth(LV2_Handle instance) {
@@ -40,10 +37,7 @@ static void connectPortFluidSynth(LV2_Handle instance,
 
     switch (port) {
     case MIDI:
-        plugin->midi = data;
-        break;
-    case CHAN1PROGRAM:
-        plugin->chan1program = data;
+        plugin->midi_in = (LV2_Atom_Sequence*)data;
         break;
     case LEFT:
         plugin->left = data;
@@ -57,33 +51,40 @@ static void connectPortFluidSynth(LV2_Handle instance,
 static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
                                          const char *bundle_path, const LV2_Feature * const * features) {
 
-    FluidSynth *plugin_data = (FluidSynth*)malloc(sizeof(FluidSynth));
+    FluidSynth* plugin_data = (FluidSynth*)malloc(sizeof(FluidSynth));
 
     plugin_data->settings = new_fluid_settings();
     fluid_settings_setnum(plugin_data->settings, "synth.sample-rate", sample_rate);
     plugin_data->synth = new_fluid_synth(plugin_data->settings);
     plugin_data->sequencer = new_fluid_sequencer2(true);
     plugin_data->synthSeqId = fluid_sequencer_register_fluidsynth(plugin_data->sequencer, plugin_data->synth);
+
     // TODO: unhardcode this and move it somewhere useful
     fluid_synth_sfload(plugin_data->synth, "/usr/share/sounds/sf2/FluidR3_GM.sf2", 1);
     plugin_data->program_is_ready = true;
+
     plugin_data->samples_per_tick = sample_rate/FLUID_TIME_SCALE;
 
-    LV2_URID_Map* map_feature;
-    int j;
-    for (j =0; features[j]; j++) {
-        printf("%s\n", features[j]->URI);
+    LV2_URID_Map* map_feature = 0;
+    for (int j =0; features[j]; j++) {
         if (!strcmp(features[j]->URI, "http://lv2plug.in/ns/ext/urid#map")) {
             map_feature = (LV2_URID_Map*)features[j]->data;
             plugin_data->midi_event_id = map_feature->map(map_feature->handle,
                                                           LV2_MIDI_EVENT_URI);
         }
     }
-
-    // bodge that seems to happen to work in calfjackhost:
-    if (!plugin_data->midi_event_id) plugin_data->midi_event_id = 1;
+    if (map_feature == 0) {
+        fprintf(stderr, "Host does not support urid:map\n");
+        goto fail;
+    }
 
     return (LV2_Handle)plugin_data;
+fail:
+    delete_fluid_synth(plugin_data->synth);
+    delete_fluid_settings(plugin_data->settings);
+    delete_fluid_sequencer(plugin_data->sequencer);
+    free(plugin_data);
+    return 0;
 }
 
 static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
@@ -92,32 +93,22 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
     unsigned int when;
     bool unhandled_opcode;
     uint8_t* midi_data;
-    LV2_Event* lv2_evt;
 
     FluidSynth *plugin_data = (FluidSynth*)instance;
-    lv2_event_begin(&plugin_data->event_iter, plugin_data->midi);
-    
-    if (*plugin_data->chan1program != plugin_data->prev_program) {
-        fluid_synth_program_change(plugin_data->synth, 0, (int)*plugin_data->chan1program);
-        plugin_data->prev_program = *plugin_data->chan1program;
+    if (!plugin_data->program_is_ready) {
+        return;
     }
 
-    while (lv2_event_is_valid(&plugin_data->event_iter)) {
-        lv2_evt = lv2_event_get(&plugin_data->event_iter, &midi_data);
-        lv2_event_increment(&plugin_data->event_iter);
-
-        if (lv2_evt->type == plugin_data->midi_event_id) {
-            if (!plugin_data->program_is_ready) {
-                printf("program not ready\n");
-                return;
-            }
-
+    LV2_SEQUENCE_FOREACH(plugin_data->midi_in, i) {
+        LV2_Atom_Event* const ev = lv2_sequence_iter_get(i);
+        if (ev->body.type == plugin_data->midi_event_id) {
+            midi_data = (uint8_t*)(ev + 1);
             fluid_evt = new_fluid_event();
             fluid_event_set_source(fluid_evt, -1);
             fluid_event_set_dest(fluid_evt, plugin_data->synthSeqId);
 
             unhandled_opcode = false;
-            when = lv2_evt->frames / plugin_data->samples_per_tick;
+            when = ev->time.audio.frames / plugin_data->samples_per_tick;
             chan = (midi_data[0] & 0x0F);
             switch ((midi_data[0] & 0xF0)) {
             case NOTE_OFF:
@@ -148,6 +139,7 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
                 fluid_sequencer_send_at(plugin_data->sequencer, fluid_evt, when, 0);
             }
             delete_fluid_event(fluid_evt);
+
         }
     }
 

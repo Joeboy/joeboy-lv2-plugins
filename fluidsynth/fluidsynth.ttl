@@ -1,9 +1,10 @@
 @prefix lv2:  <http://lv2plug.in/ns/lv2core#>.
-@prefix ev: <http://lv2plug.in/ns/ext/event#>.
 @prefix doap: <http://usefulinc.com/ns/doap#>.
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
 @prefix pg: <http://ll-plugins.nongnu.org/lv2/ext/portgroups#>.
+@prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
+
 
 <http://www.joebutton.co.uk/software/lv2/fluidsynth/out> a pg:StereoGroup.
 
@@ -15,26 +16,18 @@
 
 
   lv2:port [
-    a ev:EventPort, lv2:InputPort;
-    lv2:index 0;
-    ev:supportsEvent <http://lv2plug.in/ns/ext/midi#MidiEvent>;
-    lv2:symbol "midi";
-    lv2:name "MIDI";
-  ],
+    a atom:MessagePort, lv2:InputPort;
+    atom:bufferType atom:Sequence;
+    atom:supports <http://lv2plug.in/ns/ext/midi#MidiEvent>;
 
-  [
-    a lv2:ControlPort, lv2:InputPort;
-    lv2:index 1;
-    lv2:symbol "chan1program";
-    lv2:name "Channel 1 Program";
-    lv2:minimum 0;
-    lv2:maximum 127;
-    lv2:default 0;
+    lv2:index 0;
+    lv2:symbol "midi_in";
+    lv2:name "MIDI in";
   ],
 
   [
     a lv2:AudioPort, lv2:OutputPort;
-    lv2:index 2;
+    lv2:index 1;
     lv2:symbol "left";
     lv2:name "Left";
     pg:membership [
@@ -45,7 +38,7 @@
 
   [
     a lv2:AudioPort, lv2:OutputPort;
-    lv2:index 3;
+    lv2:index 2;
     lv2:symbol "right";
     lv2:name "Right";
     pg:membership [
