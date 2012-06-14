@@ -69,18 +69,21 @@ static void port_event(LV2UI_Handle ui,
                uint32_t buffer_size,
                uint32_t format,
                const void * buffer) {
-
     AmpGui *pluginGui = (AmpGui *) ui;
     float * pval = (float *)buffer;
-    printf("port_event(%u, %p) called\n", (unsigned int)port_index, buffer);
-
+    
+    // removed print due to spamming ardours output
+    //printf("port_event(%u, %p) called\n", (unsigned int)port_index, buffer);
+    
     if (format != 0) {
         return;
     }
-
+    
     if ((port_index < 0) || (port_index >= AMP_N_PORTS)) {
-        return;
+      return;
     }
+    
+    gtk_range_set_value((GtkRange*)pluginGui->volume_control, *pval);
 }
 
 static LV2UI_Descriptor descriptors[] = {
