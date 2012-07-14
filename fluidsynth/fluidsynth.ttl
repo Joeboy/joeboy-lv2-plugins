@@ -2,8 +2,11 @@
 @prefix doap: <http://usefulinc.com/ns/doap#>.
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>.
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
-@prefix pg: <http://ll-plugins.nongnu.org/lv2/ext/portgroups#>.
-@prefix atom:  <http://lv2plug.in/ns/ext/atom#> .
+@prefix pg:   <http://ll-plugins.nongnu.org/lv2/ext/portgroups#>.
+@prefix atom: <http://lv2plug.in/ns/ext/atom#>.
+@prefix ui:   <http://lv2plug.in/ns/extensions/ui#>.
+@prefix urid: <http://lv2plug.in/ns/ext/urid#>.
+@prefix work: <http://lv2plug.in/ns/ext/worker#> .
 
 
 <http://www.joebutton.co.uk/software/lv2/fluidsynth/out> a pg:StereoGroup.
@@ -12,17 +15,19 @@
   a lv2:Plugin, lv2:InstrumentPlugin;
   doap:name "Fluidsynth";
   doap:license <http://usefulinc.com/doap/licenses/gpl>;
-  lv2:requiredFeature <http://lv2plug.in/ns/ext/urid#map> ;
+  lv2:requiredFeature urid:map, work:schedule;
+  lv2:extensionData state:interface, work:interface;
+  ui:ui <http://www.joebutton.co.uk/software/lv2/fluidsynth#ui>;
 
 
   lv2:port [
-    a atom:MessagePort, lv2:InputPort;
+    a atom:AtomPort, lv2:InputPort;
     atom:bufferType atom:Sequence;
-    atom:supports <http://lv2plug.in/ns/ext/midi#MidiEvent>;
-
+    atom:supports <http://lv2plug.in/ns/ext/midi#MidiEvent>,
+                  <http://lv2plug.in/ns/ext/patch#Message>;
     lv2:index 0;
-    lv2:symbol "midi_in";
-    lv2:name "MIDI in";
+    lv2:symbol "control";
+    lv2:name "Control in";
   ],
 
   [
@@ -46,3 +51,14 @@
       pg:role pg:rightChannel;
     ];
   ].
+
+
+<http://www.joebutton.co.uk/software/lv2/fluidsynth#ui>
+    a ui:GtkUI ;
+    lv2:requiredFeature urid:map;
+    ui:portNotification [
+        ui:plugin <http://www.joebutton.co.uk/software/lv2/fluidsynth>;
+        lv2:symbol "notify";
+        ui:notifyType atom:Blank
+    ].
+

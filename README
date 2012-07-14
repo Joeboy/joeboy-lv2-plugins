@@ -4,9 +4,8 @@ An assortment of LV2 plugins
 fluidsynth
 ----------
 
-An effort at an LV2 version of the Fluidsynth synthesizer. Is kind of working
-(you can play soundfonts), but the soundfont file path is hard-coded and you can
-only select patches by number.
+An effort at an LV2 version of the Fluidsynth synthesizer. Is unfinished, but
+you can load and play soundfonts.
 
 pitchdetect
 -----------
