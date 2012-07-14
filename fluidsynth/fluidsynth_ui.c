@@ -11,40 +11,16 @@
 
 typedef struct {
     LV2_Atom_Forge forge;
-
     LV2UI_Controller controller;
     LV2UI_Write_Function write_function;
     FluidSynthURIs uris;
     LV2_URID_Map* map;
 } FluidSynthGui;
 
-
-static void
-on_load_clicked(GtkWidget* widget,
-                void*      handle)
-{
-    FluidSynthGui* ui = (FluidSynthGui*)handle;
-
-    GtkWidget* dialog = gtk_file_chooser_dialog_new(
-        "Load SoundFont",
-        NULL,
-        GTK_FILE_CHOOSER_ACTION_OPEN,
-        GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-        GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
-        NULL);
-
-    /* Run the dialog, and return if it is cancelled. */
-    if (gtk_dialog_run(GTK_DIALOG(dialog)) != GTK_RESPONSE_ACCEPT) {
-        gtk_widget_destroy(dialog);
-        return;
-    }
-
-    /* Get the file path from the dialog. */
-    char* filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-
-    /* Got what we need, destroy the dialog. */
-    gtk_widget_destroy(dialog);
-//    printf("%s\n", filename);
+static void sf_chosen(GtkWidget* widget,
+                      void* data) {
+    char* filename = gtk_file_chooser_get_filename((GtkFileChooser*)widget);
+    FluidSynthGui* ui = (FluidSynthGui*)data;
 
     #define OBJ_BUF_SIZE 1024
     uint8_t obj_buf[OBJ_BUF_SIZE];
@@ -56,7 +32,6 @@ on_load_clicked(GtkWidget* widget,
     ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(msg),
               ui->uris.atom_eventTransfer,
               msg);
-//    ui->write_function(ui->controller, CONTROL, 4, ui->uris.atom_eventTransfer, obj_buf);
 
     g_free(filename);
 }
@@ -65,12 +40,14 @@ on_load_clicked(GtkWidget* widget,
 static GtkWidget* make_gui(FluidSynthGui *pluginGui) {
     // Return a pointer to a gtk widget containing our GUI
     GtkWidget* container = gtk_hbox_new(FALSE, 4);
-    GtkWidget* label = gtk_label_new("?");
-    GtkWidget* button = gtk_button_new_with_label("Load SF");
+    GtkWidget* label = gtk_label_new("Soundfont");
+    GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
+                                        GTK_FILE_CHOOSER_ACTION_OPEN);
+    gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
     gtk_box_pack_start(GTK_BOX(container), label, TRUE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), button, FALSE, TRUE, 4); 
-    g_signal_connect(button, "clicked",
-                     G_CALLBACK(on_load_clicked),
+    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)sf_chooser, FALSE, TRUE, 4); 
+    g_signal_connect(sf_chooser, "file-set",
+                     G_CALLBACK(sf_chosen),
                      pluginGui);
     return container;
 }

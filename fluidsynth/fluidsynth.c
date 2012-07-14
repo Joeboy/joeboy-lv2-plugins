@@ -213,7 +213,7 @@ work_response(LV2_Handle  instance,
               const void* data)
 {
     FluidSynth* plugin_data = (FluidSynth*)instance;
-    printf("loaded %s\n", data);
+    //printf("loaded %s\n", data);
 
     return LV2_WORKER_SUCCESS;
 }
