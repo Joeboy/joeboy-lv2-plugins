@@ -92,7 +92,6 @@ static LV2UI_Handle instantiate(const struct _LV2UI_Descriptor * descriptor,
 }
 
 static void cleanup(LV2UI_Handle ui) {
-    printf("cleanup()\n");
     FluidSynthGui *pluginGui = (FluidSynthGui *) ui;
     free(pluginGui);
 }
@@ -104,8 +103,40 @@ static void port_event(LV2UI_Handle ui,
                const void * buffer) {
 
     FluidSynthGui *pluginGui = (FluidSynthGui *) ui;
-    float * pval = (float *)buffer;
-    printf("port_event(%u, %p) called\n", (unsigned int)port_index, buffer);
+    if (format==pluginGui->uris.atom_eventTransfer) {
+        LV2_Atom_Object* obj = (LV2_Atom_Object*) buffer;
+        if (obj->body.otype != pluginGui->uris.sf_loaded) {
+            fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
+            return;
+        }
+        const LV2_Atom_Object* sf_file = NULL;
+        lv2_atom_object_get(obj, pluginGui->uris.sf_file, &sf_file, 0);
+        if (!sf_file) {
+            fprintf(stderr, "Port event error: Malformed set message has no sf_file.\n");
+            return;
+        }
+        printf("%s\n", (char*)LV2_ATOM_BODY(sf_file));
+
+        const LV2_Atom_Object* sf_preset_list = NULL;
+        lv2_atom_object_get(obj, pluginGui->uris.sf_preset_list, &sf_preset_list, 0);
+        LV2_Atom_Vector_Body* presets  = (LV2_Atom_Vector_Body*)LV2_ATOM_BODY(sf_preset_list);
+
+        LV2_Atom_Tuple* tup = (char*)(1+presets);
+        LV2_Atom* el;
+        for(;;) {
+            LV2_Atom* el = lv2_atom_tuple_begin(tup);
+            printf("var0 = %d\n", *(int*)LV2_ATOM_BODY(el));
+            el = lv2_atom_tuple_next(el);
+            printf("var1 = %d\n", *(int*)LV2_ATOM_BODY(el));
+            el = lv2_atom_tuple_next(el);
+            printf("var2 = %s\n", (char*)LV2_ATOM_CONTENTS(LV2_Atom_String, el));
+            tup = (char*)tup + lv2_atom_total_size(tup);
+            if (tup >= (char*)presets + ((LV2_Atom_Vector*)sf_preset_list)->atom.size) break;
+        }
+
+    } else {
+        printf("Unknown format\n");
+    }
 }
 
 static LV2UI_Descriptor descriptors[] = {

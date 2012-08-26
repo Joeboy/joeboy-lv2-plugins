@@ -2,6 +2,7 @@
 #define CONTROL                 0
 #define LEFT                    1
 #define RIGHT                   2
+#define NOTIFY                  3
 #define FLUID_TIME_SCALE        1000
 
 // MIDI opcodes
