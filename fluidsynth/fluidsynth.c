@@ -261,7 +261,7 @@ work_response(LV2_Handle  instance,
     LV2_Atom_Forge_Frame preset_frame;
 
     lv2_atom_forge_frame_time(&plugin->forge, plugin->frame_offset);
-    LV2_Atom* e = lv2_atom_forge_blank(&plugin->forge, &loaded_frame, 1, plugin->uris.sf_loaded);
+    lv2_atom_forge_blank(&plugin->forge, &loaded_frame, 1, plugin->uris.sf_loaded);
 
     lv2_atom_forge_property_head(&plugin->forge, plugin->uris.sf_file, 0);
     lv2_atom_forge_path(&plugin->forge, plugin->soundfont_data.name, strlen(plugin->soundfont_data.name));
@@ -279,11 +279,10 @@ work_response(LV2_Handle  instance,
         lv2_atom_forge_string(&plugin->forge, curr->fluidpreset->name, strlen(curr->fluidpreset->name));
         lv2_atom_forge_pop(&plugin->forge, &preset_frame);
         i++;
-        if (i>=30) break; // crappy buffer overflow protection
+//        if (i>=8) break; // crappy buffer overflow protection
     }
     lv2_atom_forge_pop(&plugin->forge, &presetlist_frame);
     lv2_atom_forge_pop(&plugin->forge, &loaded_frame);
-    printf("e size = %d\n", e->size);
 
     return LV2_WORKER_SUCCESS;
 }

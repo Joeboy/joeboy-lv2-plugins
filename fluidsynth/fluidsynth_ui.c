@@ -18,13 +18,13 @@ typedef struct {
     GtkListStore* preset_num_model;
     GtkListStore* preset_bank_model;
     SoundFontData soundfont_data;
-} FluidSynthGui;
+} Ui;
 
 
 static void sf_chosen(GtkWidget* widget,
                       void* data) {
     char* filename = gtk_file_chooser_get_filename((GtkFileChooser*)widget);
-    FluidSynthGui* ui = (FluidSynthGui*)data;
+    Ui* ui = (Ui*)data;
 
     uint8_t obj_buf[512];
     lv2_atom_forge_set_buffer(&ui->forge, obj_buf, 512);
@@ -52,7 +52,7 @@ static void sf_chosen(GtkWidget* widget,
 
 
 static void bank_changed(GtkWidget* widget, void* data) {
-    FluidSynthGui* ui = (FluidSynthGui*)data;
+    Ui* ui = (Ui*)data;
     FluidPresetListItem *curr;
     GtkTreeIter iter;
     int bank;
@@ -69,25 +69,22 @@ static void bank_changed(GtkWidget* widget, void* data) {
 }
 
 static void num_changed(GtkWidget *widget, void *data) {
-    FluidSynthGui* ui = (FluidSynthGui*)data;
+    Ui* ui = (Ui*)data;
     GtkTreeIter iter;
     int bank, num;
     gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter);
     gtk_tree_model_get(GTK_TREE_MODEL(ui->preset_num_model), &iter, 1, &bank, 2, &num, -1);
-    printf("%d, %d\n", bank, num);
 
     uint8_t obj_buf[256];
     lv2_atom_forge_set_buffer(&ui->forge, obj_buf, 256);
     
     LV2_Atom* a;
     const uint8_t ev1[3] = { CONTROL_CHANGE, 0x00, bank};
-    printf("%02x%02x%02x\n", ev1[0], ev1[1], ev1[2]);
     a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev1), ui->uris.midi_Event);
     lv2_atom_forge_write(&ui->forge, &ev1, sizeof(ev1));
     ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(a), ui->uris.atom_eventTransfer, a);
 
     const uint8_t ev2[3] = { PROGRAM_CHANGE, (uint8_t)num, 0 };
-    printf("%02x%02x%02x\n", ev2[0], ev2[1], ev2[2]);
     a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev2), ui->uris.midi_Event);
     lv2_atom_forge_write(&ui->forge, &ev2, sizeof(ev2));
 
@@ -96,20 +93,20 @@ static void num_changed(GtkWidget *widget, void *data) {
 }
 
 
-static GtkWidget* make_gui(FluidSynthGui *pluginGui) {
+static GtkWidget* make_gui(Ui *ui) {
     // Return a pointer to a gtk widget containing our GUI
     GtkWidget* container = gtk_hbox_new(FALSE, 4);
     GtkWidget* label = gtk_label_new("Soundfont");
     GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
                                         GTK_FILE_CHOOSER_ACTION_OPEN);
     gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
-    pluginGui->preset_num_model = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT);
-    pluginGui->preset_bank_model = gtk_list_store_new(1, G_TYPE_UINT);
+    ui->preset_num_model = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT);
+    ui->preset_bank_model = gtk_list_store_new(1, G_TYPE_UINT);
 
     GtkTreeIter list_iterator;
 
-    GtkWidget* preset_num_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(pluginGui->preset_num_model));
-    GtkWidget* preset_bank_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(pluginGui->preset_bank_model));
+    GtkWidget* preset_num_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_num_model));
+    GtkWidget* preset_bank_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_bank_model));
     GtkCellRenderer* num_cell = gtk_cell_renderer_text_new();
     GtkCellRenderer* bank_cell = gtk_cell_renderer_text_new();
     gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_num_chooser), num_cell, TRUE);
@@ -121,9 +118,9 @@ static GtkWidget* make_gui(FluidSynthGui *pluginGui) {
     gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)sf_chooser, FALSE, TRUE, 4); 
     gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_bank_chooser, FALSE, TRUE, 4); 
     gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_num_chooser, FALSE, TRUE, 4); 
-    g_signal_connect(sf_chooser, "file-set", G_CALLBACK(sf_chosen), pluginGui);
-    g_signal_connect(preset_bank_chooser, "changed", G_CALLBACK(bank_changed), pluginGui);
-    g_signal_connect(preset_num_chooser, "changed", G_CALLBACK(num_changed), pluginGui);
+    g_signal_connect(sf_chooser, "file-set", G_CALLBACK(sf_chosen), ui);
+    g_signal_connect(preset_bank_chooser, "changed", G_CALLBACK(bank_changed), ui);
+    g_signal_connect(preset_num_chooser, "changed", G_CALLBACK(num_changed), ui);
     return container;
 }
 
@@ -141,71 +138,71 @@ static LV2UI_Handle instantiate(const struct _LV2UI_Descriptor * descriptor,
         return NULL;
     }
 
-    FluidSynthGui* pluginGui = (FluidSynthGui*)malloc(sizeof(FluidSynthGui));
-    if (pluginGui == NULL) return NULL;
+    Ui* ui = (Ui*)malloc(sizeof(Ui));
+    if (ui == NULL) return NULL;
 
     for (int i = 0; features[i]; ++i) {
         if (!strcmp(features[i]->URI, LV2_URID__map)) {
-            pluginGui->map = (LV2_URID_Map*)features[i]->data;
+            ui->map = (LV2_URID_Map*)features[i]->data;
         }
     }
 
-    if (!pluginGui->map) {
+    if (!ui->map) {
         fprintf(stderr, "sampler_ui: Host does not support urid:Map\n");
-        free(pluginGui);
+        free(ui);
         return NULL;
     }
 
-    map_fluidsynth_uris(pluginGui->map, &pluginGui->uris);
-    lv2_atom_forge_init(&pluginGui->forge, pluginGui->map);
+    map_fluidsynth_uris(ui->map, &ui->uris);
+    lv2_atom_forge_init(&ui->forge, ui->map);
 
-    pluginGui->controller = controller;
-    pluginGui->write_function = write_function;
-    pluginGui->soundfont_data.name = NULL;
+    ui->controller = controller;
+    ui->write_function = write_function;
+    ui->soundfont_data.name = NULL;
 
-    *widget = (LV2UI_Widget)make_gui(pluginGui);
-    return (LV2UI_Handle)pluginGui;
+    *widget = (LV2UI_Widget)make_gui(ui);
+    return (LV2UI_Handle)ui;
 }
 
-static void cleanup(LV2UI_Handle ui) {
-    FluidSynthGui *pluginGui = (FluidSynthGui *) ui;
-    free_soundfont_data(pluginGui->soundfont_data);
-    free(pluginGui);
+static void cleanup(LV2UI_Handle ui_handle) {
+    Ui *ui = (Ui *) ui_handle;
+    free_soundfont_data(ui->soundfont_data);
+    free(ui);
 }
 
-static void port_event(LV2UI_Handle ui,
+static void port_event(LV2UI_Handle ui_handle,
                uint32_t port_index,
                uint32_t buffer_size,
                uint32_t format,
                const void * buffer) {
 
-    FluidSynthGui *pluginGui = (FluidSynthGui *) ui;
-    if (format==pluginGui->uris.atom_eventTransfer) {
+    Ui *ui = (Ui*) ui_handle;
+    if (format==ui->uris.atom_eventTransfer) {
         LV2_Atom_Object* obj = (LV2_Atom_Object*) buffer;
-        if (obj->body.otype != pluginGui->uris.sf_loaded) {
+        if (obj->body.otype != ui->uris.sf_loaded) {
             fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
             return;
         }
         const LV2_Atom_Object* sf_file = NULL;
-        lv2_atom_object_get(obj, pluginGui->uris.sf_file, &sf_file, 0);
+        lv2_atom_object_get(obj, ui->uris.sf_file, &sf_file, 0);
         if (!sf_file) {
             fprintf(stderr, "Port event error: Malformed set message has no sf_file.\n");
             return;
         }
         char* sf_name = LV2_ATOM_BODY(sf_file);
-        free_soundfont_data(pluginGui->soundfont_data);
-        pluginGui->soundfont_data.name = malloc(1+strlen(sf_name));
-        strcpy(pluginGui->soundfont_data.name, sf_name);
+        free_soundfont_data(ui->soundfont_data);
+        ui->soundfont_data.name = malloc(1+strlen(sf_name));
+        strcpy(ui->soundfont_data.name, sf_name);
 
         const LV2_Atom_Object* sf_preset_list = NULL;
-        lv2_atom_object_get(obj, pluginGui->uris.sf_preset_list, &sf_preset_list, 0);
+        lv2_atom_object_get(obj, ui->uris.sf_preset_list, &sf_preset_list, 0);
         LV2_Atom_Vector_Body* presets  = (LV2_Atom_Vector_Body*)LV2_ATOM_BODY(sf_preset_list);
 
         LV2_Atom_Tuple* tup = (LV2_Atom_Tuple*)(1+presets);
         LV2_Atom* el;
         GtkTreeIter iter;
-//        gtk_list_store_clear(pluginGui->preset_num_model);
-//        gtk_list_store_clear(pluginGui->preset_bank_model); // This breaks stuff - something screwey is going on...
+//        gtk_list_store_clear(ui->preset_num_model);
+//        gtk_list_store_clear(ui->preset_bank_model); // This breaks stuff - something screwey is going on...
         int preset_bank, preset_num;
         char* preset_name;
         GtkTreePath* path;//      gtk_tree_path_new_from_string       (const gchar *path);
@@ -221,16 +218,16 @@ static void port_event(LV2UI_Handle ui,
 //            printf("received %d:%d:%s\n", preset_bank, preset_num, preset_name);
             fluid_preset_list_item = malloc(sizeof(FluidPresetListItem));
             if (prev) prev->next = fluid_preset_list_item;
-            else pluginGui->soundfont_data.preset_list = fluid_preset_list_item;
+            else ui->soundfont_data.preset_list = fluid_preset_list_item;
             fluid_preset_list_item->fluidpreset = new_fluid_preset(preset_bank, preset_num, preset_name);
             fluid_preset_list_item->next = NULL;
             prev = fluid_preset_list_item;
 
             sprintf(buf, "%d", preset_bank);
 //            printf("%d:%s\n", preset_bank, buf);
-            if (!gtk_tree_model_get_iter_from_string(GTK_TREE_MODEL(pluginGui->preset_bank_model), &iter, buf)) {
-                gtk_list_store_append(GTK_LIST_STORE(pluginGui->preset_bank_model), &iter);
-                gtk_list_store_set(GTK_LIST_STORE(pluginGui->preset_bank_model), &iter, 0, preset_bank, -1);
+            if (!gtk_tree_model_get_iter_from_string(GTK_TREE_MODEL(ui->preset_bank_model), &iter, buf)) {
+                gtk_list_store_append(GTK_LIST_STORE(ui->preset_bank_model), &iter);
+                gtk_list_store_set(GTK_LIST_STORE(ui->preset_bank_model), &iter, 0, preset_bank, -1);
             }
 
             tup = (LV2_Atom_Tuple*)((char*)tup + lv2_atom_total_size((LV2_Atom*)tup));
