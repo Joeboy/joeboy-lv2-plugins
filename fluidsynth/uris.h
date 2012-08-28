@@ -49,28 +49,6 @@ is_object_type(const FluidSynthURIs* uris, LV2_URID type)
         || type == uris->atom_Blank;
 }
 
-static inline LV2_Atom*
-write_set_file(LV2_Atom_Forge*    forge,
-               const FluidSynthURIs* uris,
-               const char*        filename,
-               const size_t       filename_len)
-{
-    LV2_Atom_Forge_Frame set_frame;
-    LV2_Atom* set = (LV2_Atom*)lv2_atom_forge_blank(
-        forge, &set_frame, 1, uris->patch_Set);
-
-    lv2_atom_forge_property_head(forge, uris->patch_body, 0);
-    LV2_Atom_Forge_Frame body_frame;
-    lv2_atom_forge_blank(forge, &body_frame, 2, 0);
-
-    lv2_atom_forge_property_head(forge, uris->sf_file, 0);
-    lv2_atom_forge_path(forge, filename, filename_len);
-
-    lv2_atom_forge_pop(forge, &body_frame);
-    lv2_atom_forge_pop(forge, &set_frame);
-
-    return set;
-}
 
 static inline const LV2_Atom*
 read_set_file(const FluidSynthURIs*     uris,
@@ -108,12 +86,39 @@ typedef struct {
     int bank;
     int num;
     char* name;
-    struct FluidPreset* next;
 } FluidPreset;
+
+typedef struct FluidPresetListItem {
+    FluidPreset* fluidpreset;
+    struct FluidPresetListItem* next;
+} FluidPresetListItem;
 
 typedef struct {
     char* name;
-    FluidPreset* preset_list;
+    FluidPresetListItem* preset_list;
 } SoundFontData;
+
+FluidPreset* new_fluid_preset(int bank, int num, char* name) {
+    FluidPreset *fp = malloc(sizeof(FluidPreset));
+    if (!fp) return NULL;
+    fp->bank = bank;
+    fp->num = num;
+    fp->name = (char*)malloc(1 + strlen(name));
+    if (!fp->name) return NULL;
+    strcpy(fp->name, name);
+    return fp;
+}
+
+int free_soundfont_data(SoundFontData soundfont_data) {
+    if (soundfont_data.name) free(soundfont_data.name);
+    FluidPresetListItem *curr, *next;
+    for (curr=soundfont_data.preset_list;curr;) {
+        free(curr->fluidpreset->name);
+        free(curr->fluidpreset);
+        next = curr->next;
+        free(curr);
+        curr = next;
+    }
+}
 
 #endif

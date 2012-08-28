@@ -38,6 +38,7 @@ typedef struct {
 
 static void cleanupFluidSynth(LV2_Handle instance) {
     FluidSynth *plugin_data = (FluidSynth*)instance;
+    free_soundfont_data(plugin_data->soundfont_data);
     delete_fluid_synth(plugin_data->synth);
     delete_fluid_settings(plugin_data->settings);
     delete_fluid_sequencer(plugin_data->sequencer);
@@ -84,7 +85,7 @@ static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double samp
     plugin_data->map = 0;
     plugin_data->schedule = 0;
     for (int i =0; features[i]; i++) {
-        printf("%s\n", features[i]->URI);
+//        printf("%s\n", features[i]->URI);
         if (!strcmp(features[i]->URI, LV2_URID__map)) {
             plugin_data->map = (LV2_URID_Map*)features[i]->data;
         } else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
@@ -101,6 +102,7 @@ static LV2_Handle instantiateFluidSynth( const LV2_Descriptor *desc, double samp
     }
     map_fluidsynth_uris(plugin_data->map, &plugin_data->uris);
     lv2_atom_forge_init(&plugin_data->forge, plugin_data->map);
+    plugin_data->soundfont_data.name = NULL;
 
     return (LV2_Handle)plugin_data;
 fail:
@@ -132,6 +134,7 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
     LV2_ATOM_SEQUENCE_FOREACH(plugin_data->control, ev) {
         if (ev->body.type == uris->midi_Event) {
             midi_data = (uint8_t*)(ev + 1);
+//            printf("rec'd %02x%02x%02x\n", midi_data[0], midi_data[1], midi_data[2]);
             fluid_evt = new_fluid_event();
             fluid_event_set_source(fluid_evt, -1);
             fluid_event_set_dest(fluid_evt, plugin_data->synthSeqId);
@@ -169,7 +172,7 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
             }
             delete_fluid_event(fluid_evt);
 
-		} else if (is_object_type(uris, ev->body.type)) {
+        } else if (is_object_type(uris, ev->body.type)) {
             const LV2_Atom_Object* obj = (LV2_Atom_Object*)&ev->body;
             if (obj->body.otype == uris->patch_Set) {
                 /* Received a set message, send it to the worker. */
@@ -217,33 +220,38 @@ work(LV2_Handle                  instance,
         }
 
         int sf;
+        char* sf_name;
         if (sf = fluid_synth_sfload(plugin_data->synth, LV2_ATOM_BODY(file_path), 1)) {
             fluid_synth_sfont_select(plugin_data->synth, 0, sf);
 
             fluid_sfont_t* sfont = fluid_synth_get_sfont(plugin_data->synth, 0);
-            plugin_data->soundfont_data.name = sfont->get_name(sfont);
-//            printf("%s\n", (*sfont->get_name)(sfont));
+            sf_name = sfont->get_name(sfont);
+            plugin_data->soundfont_data.name = malloc(1+strlen(sf_name));
+            strcpy(plugin_data->soundfont_data.name, sf_name);
             sfont->iteration_start(sfont);
             fluid_preset_t preset;
-//            int first_preset = -1;
-            FluidPreset *prev = NULL, *curr=NULL, *first_preset=NULL;
+            FluidPreset *first_preset=NULL;
+            FluidPresetListItem *prev=NULL, *fluid_preset_list_item;
             while(sfont->iteration_next(sfont, &preset)) {
-                curr = (FluidPreset*)malloc(sizeof(FluidPreset));
-                if (prev) prev->next = (struct FluidPreset*)curr;
-                else plugin_data->soundfont_data.preset_list=curr;
-                curr->bank = preset.get_banknum(&preset);
-                curr->num = preset.get_num(&preset);
-                curr->name = preset.get_name(&preset);
-                curr->next = NULL;
-                prev = curr;
-                if (first_preset == NULL) first_preset = curr;
+                fluid_preset_list_item = malloc(sizeof(FluidPresetListItem));
+                if (prev) prev->next = fluid_preset_list_item;
+                else plugin_data->soundfont_data.preset_list = fluid_preset_list_item;
+                fluid_preset_list_item->fluidpreset = new_fluid_preset(preset.get_banknum(&preset),
+                                        preset.get_num(&preset),
+                                        preset.get_name(&preset));
+                fluid_preset_list_item->next = NULL;
+                prev = fluid_preset_list_item;
+                if (!first_preset) first_preset = fluid_preset_list_item->fluidpreset;
+//                printf("%d:%d:%s\n", fluid_preset_list_item->fluidpreset->bank,
+//                                     fluid_preset_list_item->fluidpreset->num,
+//                                     fluid_preset_list_item->fluidpreset->name);
             }
             if (first_preset) {
                 fluid_synth_bank_select(plugin_data->synth, 0, first_preset->bank);
                 fluid_synth_program_change(plugin_data->synth, 0, first_preset->num);
             }
 
-            respond(handle, 0, NULL);//strlen(LV2_ATOM_BODY(file_path)), LV2_ATOM_BODY(file_path));
+            respond(handle, 0, NULL);
         }
     }
 
@@ -258,11 +266,11 @@ work_response(LV2_Handle  instance,
     FluidSynth* plugin_data = (FluidSynth*)instance;
 
 
-    lv2_atom_forge_frame_time(&plugin_data->forge, plugin_data->frame_offset);
     LV2_Atom_Forge_Frame loaded_frame;
     LV2_Atom_Forge_Frame presetlist_frame;
     LV2_Atom_Forge_Frame preset_frame;
 
+    lv2_atom_forge_frame_time(&plugin_data->forge, plugin_data->frame_offset);
     lv2_atom_forge_blank(&plugin_data->forge, &loaded_frame, 1, plugin_data->uris.sf_loaded);
 
     lv2_atom_forge_property_head(&plugin_data->forge, plugin_data->uris.sf_file, 0);
@@ -270,17 +278,18 @@ work_response(LV2_Handle  instance,
 
     lv2_atom_forge_property_head(&plugin_data->forge, plugin_data->uris.sf_preset_list, 0);
     lv2_atom_forge_vector_head(&plugin_data->forge, &presetlist_frame, sizeof(LV2_Atom_Tuple), plugin_data->forge.Tuple);
-    FluidPreset *curr=NULL;
+    FluidPresetListItem *curr=NULL;
     int i=0;
     for (curr=plugin_data->soundfont_data.preset_list;curr;curr=curr->next) {
-//        printf("%d:%d:%s\n", curr->bank, curr->num, curr->name);
+//        printf("sending %d:%d:%s\n", curr->fluidpreset->bank, curr->fluidpreset->num, curr->fluidpreset->name);
         lv2_atom_forge_tuple(&plugin_data->forge, &preset_frame);
-        lv2_atom_forge_int(&plugin_data->forge, curr->bank);
-        lv2_atom_forge_int(&plugin_data->forge, curr->num);
-        lv2_atom_forge_string(&plugin_data->forge, curr->name, strlen(curr->name));
+        lv2_atom_forge_int(&plugin_data->forge, curr->fluidpreset->bank);
+//        lv2_atom_forge_int(&plugin_data->forge, i / 4);
+        lv2_atom_forge_int(&plugin_data->forge, curr->fluidpreset->num);
+        lv2_atom_forge_string(&plugin_data->forge, curr->fluidpreset->name, strlen(curr->fluidpreset->name));
         lv2_atom_forge_pop(&plugin_data->forge, &preset_frame);
         i++;
-        if (i>=16) break; // crappy buffer overflow protection
+        if (i>=8) break; // crappy buffer overflow protection
     }
     lv2_atom_forge_pop(&plugin_data->forge, &presetlist_frame);
     lv2_atom_forge_pop(&plugin_data->forge, &loaded_frame);
