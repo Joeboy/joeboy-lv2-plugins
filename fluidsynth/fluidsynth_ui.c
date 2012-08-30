@@ -98,8 +98,13 @@ static void num_changed(GtkWidget *widget, void *data) {
 
 static GtkWidget* make_gui(Ui *ui) {
     // Return a pointer to a gtk widget containing our GUI
-    GtkWidget* container = gtk_hbox_new(FALSE, 4);
-    GtkWidget* label = gtk_label_new("Soundfont");
+    GtkWidget *container = gtk_table_new(3, 2, 0);
+    GtkWidget* soundfont_label = gtk_label_new("Soundfont");
+    gtk_misc_set_alignment(soundfont_label, 1, 0);
+    GtkWidget* preset_bank_label = gtk_label_new("Bank");
+    gtk_misc_set_alignment(preset_bank_label, 1, 0);
+    GtkWidget* preset_num_label = gtk_label_new("Preset");
+    gtk_misc_set_alignment(preset_num_label, 1, 0);
     GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
                                         GTK_FILE_CHOOSER_ACTION_OPEN);
     gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
@@ -115,10 +120,12 @@ static GtkWidget* make_gui(Ui *ui) {
     gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_num_combo), num_cell, TRUE);
     gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(preset_num_combo), num_cell, "text", 0, NULL);
 
-    gtk_box_pack_start(GTK_BOX(container), label, TRUE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)sf_chooser, FALSE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_bank_combo, FALSE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_num_combo, FALSE, TRUE, 4); 
+    gtk_table_attach(GTK_TABLE(container), soundfont_label, 0, 1, 0, 1, GTK_FILL, GTK_SHRINK, 3, 3);
+    gtk_table_attach(GTK_TABLE(container), sf_chooser, 1, 2, 0, 1, GTK_FILL, GTK_SHRINK, 3,3);
+    gtk_table_attach(GTK_TABLE(container), preset_bank_label, 0, 1, 1, 2, GTK_FILL, GTK_SHRINK, 3, 3);
+    gtk_table_attach(GTK_TABLE(container), preset_bank_combo, 1, 2, 1, 2, GTK_FILL, GTK_SHRINK, 3, 3);
+    gtk_table_attach(GTK_TABLE(container), preset_num_label, 0, 1, 2, 3, GTK_FILL, GTK_SHRINK, 3, 3);
+    gtk_table_attach(GTK_TABLE(container), preset_num_combo, 1, 2, 2, 3, GTK_FILL, GTK_SHRINK, 3, 3);
     g_signal_connect(sf_chooser, "file-set", G_CALLBACK(sf_chosen), ui);
     g_signal_connect(preset_bank_combo, "changed", G_CALLBACK(bank_changed), ui);
     g_signal_connect(preset_num_combo, "changed", G_CALLBACK(num_changed), ui);
