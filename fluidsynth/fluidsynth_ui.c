@@ -15,8 +15,8 @@ typedef struct {
     LV2UI_Write_Function write_function;
     FluidSynthURIs uris;
     LV2_URID_Map* map;
-    GtkListStore* preset_num_model;
-    GtkListStore* preset_bank_model;
+    GtkTreeStore *preset_bank_store;
+    GtkTreeStore *preset_num_store;
     SoundFontData soundfont_data;
 } Ui;
 
@@ -57,13 +57,14 @@ static void bank_changed(GtkWidget* widget, void* data) {
     GtkTreeIter iter;
     int bank;
 
-    gtk_list_store_clear(ui->preset_num_model);
-    gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter);
-    gtk_tree_model_get(GTK_TREE_MODEL(ui->preset_bank_model), &iter, 0, &bank, -1);
-    for (curr=ui->soundfont_data.preset_list;curr;curr=curr->next) {
-        if (bank == curr->fluidpreset->bank) {
-            gtk_list_store_append(GTK_LIST_STORE(ui->preset_num_model), &iter);
-            gtk_list_store_set(GTK_LIST_STORE(ui->preset_num_model), &iter, 0, curr->fluidpreset->name, 1, curr->fluidpreset->bank, 2, curr->fluidpreset->num, -1);
+    if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter)) {
+        gtk_tree_store_clear(ui->preset_num_store);
+        gtk_tree_model_get(GTK_TREE_MODEL(ui->preset_bank_store), &iter, 0, &bank, -1);
+        for (curr=ui->soundfont_data.preset_list;curr;curr=curr->next) {
+            if (bank == curr->fluidpreset->bank) {
+                gtk_tree_store_append(ui->preset_num_store, &iter, NULL);
+                gtk_tree_store_set(ui->preset_num_store, &iter, 0, curr->fluidpreset->name, 1, curr->fluidpreset->bank, 2, curr->fluidpreset->num, -1);
+            }
         }
     }
 }
@@ -72,24 +73,26 @@ static void num_changed(GtkWidget *widget, void *data) {
     Ui* ui = (Ui*)data;
     GtkTreeIter iter;
     int bank, num;
-    gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter);
-    gtk_tree_model_get(GTK_TREE_MODEL(ui->preset_num_model), &iter, 1, &bank, 2, &num, -1);
+    if (gtk_combo_box_get_active_iter(GTK_COMBO_BOX(widget), &iter)) {
+        gtk_tree_model_get(gtk_combo_box_get_model(GTK_COMBO_BOX(widget)), &iter, 1, &bank, 2, &num, -1);
+//        printf("%d:%d\n", bank, num);
 
-    uint8_t obj_buf[256];
-    lv2_atom_forge_set_buffer(&ui->forge, obj_buf, 256);
-    
-    LV2_Atom* a;
-    const uint8_t ev1[3] = { CONTROL_CHANGE, 0x00, bank};
-    a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev1), ui->uris.midi_Event);
-    lv2_atom_forge_write(&ui->forge, &ev1, sizeof(ev1));
-    ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(a), ui->uris.atom_eventTransfer, a);
+        uint8_t obj_buf[32];
+        lv2_atom_forge_set_buffer(&ui->forge, obj_buf, 256);
+        
+        LV2_Atom* a;
+        const uint8_t ev1[3] = { CONTROL_CHANGE, 0x00, bank};
+        a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev1), ui->uris.midi_Event);
+        lv2_atom_forge_write(&ui->forge, &ev1, sizeof(ev1));
+        ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(a), ui->uris.atom_eventTransfer, a);
 
-    const uint8_t ev2[3] = { PROGRAM_CHANGE, (uint8_t)num, 0 };
-    a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev2), ui->uris.midi_Event);
-    lv2_atom_forge_write(&ui->forge, &ev2, sizeof(ev2));
+        const uint8_t ev2[3] = { PROGRAM_CHANGE, (uint8_t)num, 0 };
+        a = (LV2_Atom*)lv2_atom_forge_atom(&ui->forge, sizeof(ev2), ui->uris.midi_Event);
+        lv2_atom_forge_write(&ui->forge, &ev2, sizeof(ev2));
 
-    ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(a),
-              ui->uris.atom_eventTransfer, a);
+        ui->write_function(ui->controller, CONTROL, lv2_atom_total_size(a),
+                  ui->uris.atom_eventTransfer, a);
+    }
 }
 
 
@@ -100,27 +103,25 @@ static GtkWidget* make_gui(Ui *ui) {
     GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
                                         GTK_FILE_CHOOSER_ACTION_OPEN);
     gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
-    ui->preset_num_model = gtk_list_store_new(3, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT);
-    ui->preset_bank_model = gtk_list_store_new(1, G_TYPE_UINT);
+    ui->preset_bank_store = gtk_tree_store_new(1, G_TYPE_UINT);
+    ui->preset_num_store = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT);
+    GtkWidget* preset_bank_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_bank_store));
+    GtkWidget* preset_num_combo = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_num_store));
 
-    GtkTreeIter list_iterator;
-
-    GtkWidget* preset_num_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_num_model));
-    GtkWidget* preset_bank_chooser = gtk_combo_box_new_with_model(GTK_TREE_MODEL(ui->preset_bank_model));
-    GtkCellRenderer* num_cell = gtk_cell_renderer_text_new();
     GtkCellRenderer* bank_cell = gtk_cell_renderer_text_new();
-    gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_num_chooser), num_cell, TRUE);
-    gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(preset_num_chooser), num_cell, "text", 0, NULL);
-    gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_bank_chooser), bank_cell, TRUE);
-    gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(preset_bank_chooser), bank_cell, "text", 0, NULL);
+    GtkCellRenderer* num_cell = gtk_cell_renderer_text_new();
+    gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_bank_combo), bank_cell, TRUE);
+    gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(preset_bank_combo), bank_cell, "text", 0, NULL);
+    gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(preset_num_combo), num_cell, TRUE);
+    gtk_cell_layout_set_attributes(GTK_CELL_LAYOUT(preset_num_combo), num_cell, "text", 0, NULL);
 
     gtk_box_pack_start(GTK_BOX(container), label, TRUE, TRUE, 4); 
     gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)sf_chooser, FALSE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_bank_chooser, FALSE, TRUE, 4); 
-    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_num_chooser, FALSE, TRUE, 4); 
+    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_bank_combo, FALSE, TRUE, 4); 
+    gtk_box_pack_start(GTK_BOX(container), (GtkWidget*)preset_num_combo, FALSE, TRUE, 4); 
     g_signal_connect(sf_chooser, "file-set", G_CALLBACK(sf_chosen), ui);
-    g_signal_connect(preset_bank_chooser, "changed", G_CALLBACK(bank_changed), ui);
-    g_signal_connect(preset_num_chooser, "changed", G_CALLBACK(num_changed), ui);
+    g_signal_connect(preset_bank_combo, "changed", G_CALLBACK(bank_changed), ui);
+    g_signal_connect(preset_num_combo, "changed", G_CALLBACK(num_changed), ui);
     return container;
 }
 
@@ -201,13 +202,11 @@ static void port_event(LV2UI_Handle ui_handle,
         LV2_Atom_Tuple* tup = (LV2_Atom_Tuple*)(1+presets);
         LV2_Atom* el;
         GtkTreeIter iter;
-//        gtk_list_store_clear(ui->preset_num_model);
-//        gtk_list_store_clear(ui->preset_bank_model); // This breaks stuff - something screwey is going on...
-        int preset_bank, preset_num;
+        int preset_bank, preset_num, prev_preset_bank=-1;
         char* preset_name;
-        GtkTreePath* path;//      gtk_tree_path_new_from_string       (const gchar *path);
-        char buf[3];
         FluidPresetListItem *prev=NULL, *fluid_preset_list_item;
+        gtk_tree_store_clear(ui->preset_bank_store);
+        gtk_tree_store_clear(ui->preset_num_store);
         for(;;) {
             el = lv2_atom_tuple_begin(tup);
             preset_bank = *(int*)LV2_ATOM_BODY(el);
@@ -223,15 +222,14 @@ static void port_event(LV2UI_Handle ui_handle,
             fluid_preset_list_item->next = NULL;
             prev = fluid_preset_list_item;
 
-            sprintf(buf, "%d", preset_bank);
-//            printf("%d:%s\n", preset_bank, buf);
-            if (!gtk_tree_model_get_iter_from_string(GTK_TREE_MODEL(ui->preset_bank_model), &iter, buf)) {
-                gtk_list_store_append(GTK_LIST_STORE(ui->preset_bank_model), &iter);
-                gtk_list_store_set(GTK_LIST_STORE(ui->preset_bank_model), &iter, 0, preset_bank, -1);
+            if (preset_bank != prev_preset_bank) {
+                gtk_tree_store_append(ui->preset_bank_store, &iter, NULL);
+                gtk_tree_store_set(ui->preset_bank_store, &iter, 0, preset_bank, -1);
             }
 
             tup = (LV2_Atom_Tuple*)((char*)tup + lv2_atom_total_size((LV2_Atom*)tup));
             if (tup >= (LV2_Atom_Tuple*)((char*)presets + ((LV2_Atom_Vector*)sf_preset_list)->atom.size)) break;
+            prev_preset_bank = preset_bank;
         }
 
     } else {
