@@ -23,7 +23,8 @@ A very simple tremolo type effect.
 visual_compressor
 -----------------
 
-An effort at a compressor with visual feedback. 
+An effort at a compressor with visual feedback. This is completely bitrotten
+and was never any good anyway. Don't bother.
 
 amp_with_gui
 ------------

@@ -7,8 +7,8 @@ $(BUNDLE): manifest.ttl shimmer.ttl shimmer.so
 	mkdir $(BUNDLE)
 	cp manifest.ttl shimmer.ttl shimmer.so $(BUNDLE)
 
-shimmer.so: shimmer.cpp
-	g++ -shared -fPIC -DPIC shimmer.cpp `pkg-config --cflags --libs lv2-plugin` -o shimmer.so
+shimmer.so: shimmer.c
+	gcc -shared -std=c99 -fPIC -DPIC shimmer.c -o shimmer.so
 
 install: $(BUNDLE)
 	mkdir -p $(INSTALL_DIR)
