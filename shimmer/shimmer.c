@@ -14,14 +14,11 @@ typedef struct {
     int going_up;
 } Plugin;
 
-static void cleanupAmp(LV2_Handle instance)
-{
+static void cleanupShimmer(LV2_Handle instance) {
     free(instance);
 }
 
-static void connectPortAmp(LV2_Handle instance, uint32_t port,
-               void *data)
-{
+static void connectPortShimmer(LV2_Handle instance, uint32_t port, void *data) {
     Plugin *plugin = (Plugin *)instance;
 
     switch (port) {
@@ -39,10 +36,9 @@ static void connectPortAmp(LV2_Handle instance, uint32_t port,
     }
 }
 
-static LV2_Handle instantiateAmp(const LV2_Descriptor *descriptor,
-        double s_rate, const char *path,
-        const LV2_Feature * const* features)
-{
+static LV2_Handle instantiateShimmer(const LV2_Descriptor *descriptor,
+        double s_rate, const char *path, const LV2_Feature * const* features) {
+
     Plugin *plugin = (Plugin *)malloc(sizeof(Plugin));
     plugin->sample_rate = s_rate;
     plugin->shimmer_phase = 0;   // from 0-1 (1=360 degrees)
@@ -52,7 +48,7 @@ static LV2_Handle instantiateAmp(const LV2_Descriptor *descriptor,
 }
 
 
-static void runAmp(LV2_Handle instance, uint32_t sample_count)
+static void runShimmer(LV2_Handle instance, uint32_t sample_count)
 {
     Plugin *plugin = (Plugin *)instance;
     float shimmer_rate = *(plugin->shimmer_rate);
@@ -90,11 +86,11 @@ static void init()
 
     shimmerDescriptor->URI = "http://www.joebutton.co.uk/software/lv2/shimmer";
     shimmerDescriptor->activate = NULL;
-    shimmerDescriptor->cleanup = cleanupAmp;
-    shimmerDescriptor->connect_port = connectPortAmp;
+    shimmerDescriptor->cleanup = cleanupShimmer;
+    shimmerDescriptor->connect_port = connectPortShimmer;
     shimmerDescriptor->deactivate = NULL;
-    shimmerDescriptor->instantiate = instantiateAmp;
-    shimmerDescriptor->run = runAmp;
+    shimmerDescriptor->instantiate = instantiateShimmer;
+    shimmerDescriptor->run = runShimmer;
     shimmerDescriptor->extension_data = NULL;
 }
 
