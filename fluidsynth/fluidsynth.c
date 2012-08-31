@@ -4,6 +4,7 @@
 #include "lv2/lv2plug.in/ns/ext/worker/worker.h"
 #include "lv2/lv2plug.in/ns/ext/urid/urid.h"
 #include "lv2/lv2plug.in/ns/ext/atom/forge.h"
+#include "lv2/lv2plug.in/ns/ext/state/state.h"
 
 
 #include "fluidsynth.h"
@@ -34,6 +35,10 @@ typedef struct {
     fluid_sequencer_t* sequencer;
     short synthSeqId;
     unsigned int samples_per_tick;
+
+    char* sf_file;
+    unsigned int preset_bank;
+    unsigned int preset_num;
 } Plugin;
 
 static void cleanupFluidSynth(LV2_Handle instance) {
@@ -145,9 +150,11 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
                 fluid_event_noteon(fluid_evt, chan, midi_data[1], midi_data[2]);
                 break;
             case CONTROL_CHANGE:
+                plugin->preset_bank = midi_data[2];
                 fluid_event_control_change(fluid_evt, chan, midi_data[1], midi_data[2]);
                 break;
             case PROGRAM_CHANGE:
+                plugin->preset_num = midi_data[1];
                 fluid_event_program_change(fluid_evt, chan, midi_data[1]);
                 break;
             case PITCH_BEND:
@@ -218,6 +225,8 @@ work(LV2_Handle                  instance,
             sf_name = sfont->get_name(sfont);
             plugin->soundfont_data.name = malloc(1+strlen(sf_name));
             strcpy(plugin->soundfont_data.name, sf_name);
+            plugin->sf_file = malloc(1+strlen(LV2_ATOM_BODY(file_path)));
+            strcpy(plugin->sf_file, LV2_ATOM_BODY(file_path));
             sfont->iteration_start(sfont);
             fluid_preset_t preset;
             FluidPreset *first_preset=NULL;
@@ -274,7 +283,6 @@ work_response(LV2_Handle  instance,
 //        printf("sending %d:%d:%s\n", curr->fluidpreset->bank, curr->fluidpreset->num, curr->fluidpreset->name);
         lv2_atom_forge_tuple(&plugin->forge, &preset_frame);
         lv2_atom_forge_int(&plugin->forge, curr->fluidpreset->bank);
-//        lv2_atom_forge_int(&plugin->forge, i / 4);
         lv2_atom_forge_int(&plugin->forge, curr->fluidpreset->num);
         lv2_atom_forge_string(&plugin->forge, curr->fluidpreset->name, strlen(curr->fluidpreset->name));
         lv2_atom_forge_pop(&plugin->forge, &preset_frame);
@@ -287,10 +295,67 @@ work_response(LV2_Handle  instance,
     return LV2_WORKER_SUCCESS;
 }
 
+LV2_State_Status
+save(LV2_Handle                 instance,
+     LV2_State_Store_Function   store,
+     LV2_State_Handle           handle,
+     uint32_t                   flags,
+     const LV2_Feature *const * features)
+{
+    Plugin*   plugin   = (Plugin*)instance;
+
+    if (plugin->sf_file) {
+        store(handle,
+              plugin->uris.sf_file,
+              plugin->sf_file,
+              strlen(plugin->sf_file) + 1,
+              plugin->uris.atom_Path,
+              LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    }
+    if (plugin->preset_bank) {
+        store(handle,
+              plugin->uris.sf_preset_bank,
+              &plugin->preset_bank,
+              sizeof(unsigned int),
+              plugin->uris.atom_Int,
+              LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    }
+    if (plugin->preset_num) {
+        store(handle,
+              plugin->uris.sf_preset_num,
+              &plugin->preset_num,
+              sizeof(unsigned int),
+              plugin->uris.atom_Int,
+              LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    }
+
+    return LV2_STATE_SUCCESS;
+}
+
+LV2_State_Status
+restore(LV2_Handle                  instance,
+        LV2_State_Retrieve_Function retrieve,
+        LV2_State_Handle            handle,
+        uint32_t                    flags,
+        const LV2_Feature *const *  features)
+{
+    Plugin* plugin = (Plugin*)instance;
+
+    size_t      size;
+    uint32_t    type;
+    uint32_t    valflags;
+    const char* sf_file = retrieve(
+        handle, plugin->uris.sf_file, &size, &type, &valflags);
+    printf("TODO: restore: sf_file=%s\n", sf_file);
+    // TODO
+
+    return LV2_STATE_SUCCESS;
+}
+
 static const void*
 extension_data(const char* uri)
 {
-    static const LV2_State_Interface  state  = { NULL, NULL };//save, restore };
+    static const LV2_State_Interface  state  = { save, restore };
     static const LV2_Worker_Interface worker = { work, work_response, NULL };
     if (!strcmp(uri, LV2_STATE__interface)) {
         return &state;

@@ -7,6 +7,8 @@
 @prefix ui:   <http://lv2plug.in/ns/extensions/ui#>.
 @prefix urid: <http://lv2plug.in/ns/ext/urid#>.
 @prefix work: <http://lv2plug.in/ns/ext/worker#> .
+@prefix state: <http://lv2plug.in/ns/ext/state#> .
+
 
 
 <http://www.joebutton.co.uk/software/lv2/fluidsynth/out> a pg:StereoGroup.

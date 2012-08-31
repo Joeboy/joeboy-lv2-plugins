@@ -100,11 +100,11 @@ static GtkWidget* make_gui(Ui *ui) {
     // Return a pointer to a gtk widget containing our GUI
     GtkWidget *container = gtk_table_new(3, 2, 0);
     GtkWidget* soundfont_label = gtk_label_new("Soundfont");
-    gtk_misc_set_alignment(soundfont_label, 1, 0);
+    gtk_misc_set_alignment(GTK_MISC(soundfont_label), 1, 0);
     GtkWidget* preset_bank_label = gtk_label_new("Bank");
-    gtk_misc_set_alignment(preset_bank_label, 1, 0);
+    gtk_misc_set_alignment(GTK_MISC(preset_bank_label), 1, 0);
     GtkWidget* preset_num_label = gtk_label_new("Preset");
-    gtk_misc_set_alignment(preset_num_label, 1, 0);
+    gtk_misc_set_alignment(GTK_MISC(preset_num_label), 1, 0);
     GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
                                         GTK_FILE_CHOOSER_ACTION_OPEN);
     gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
