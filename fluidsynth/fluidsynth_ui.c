@@ -105,8 +105,17 @@ static GtkWidget* make_gui(Ui *ui) {
     gtk_misc_set_alignment(GTK_MISC(preset_bank_label), 1, 0);
     GtkWidget* preset_num_label = gtk_label_new("Preset");
     gtk_misc_set_alignment(GTK_MISC(preset_num_label), 1, 0);
-    GtkWidget* sf_chooser = gtk_file_chooser_button_new("Select a soundfont",
-                                        GTK_FILE_CHOOSER_ACTION_OPEN);
+    GtkWidget *sf_chooser = gtk_file_chooser_button_new("Select a soundfont", GTK_FILE_CHOOSER_ACTION_OPEN);
+    GtkFileFilter *sf_chooser_sf_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(sf_chooser_sf_filter, "Soundfonts (.sf2)");
+    gtk_file_filter_add_pattern(sf_chooser_sf_filter, "*.sf2");
+    gtk_file_filter_add_pattern(sf_chooser_sf_filter, "*.SF2");
+    gtk_file_filter_add_pattern(sf_chooser_sf_filter, "*.Sf2");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(sf_chooser), sf_chooser_sf_filter);
+    GtkFileFilter *sf_chooser_all_filter = gtk_file_filter_new();
+    gtk_file_filter_set_name(sf_chooser_all_filter, "All files");
+    gtk_file_filter_add_pattern(sf_chooser_all_filter, "*");
+    gtk_file_chooser_add_filter(GTK_FILE_CHOOSER(sf_chooser), sf_chooser_all_filter);
     gtk_file_chooser_button_set_width_chars((GtkFileChooserButton*)sf_chooser, 20);
     ui->preset_bank_store = gtk_tree_store_new(1, G_TYPE_UINT);
     ui->preset_num_store = gtk_tree_store_new(3, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_UINT);

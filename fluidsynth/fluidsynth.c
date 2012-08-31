@@ -37,8 +37,8 @@ typedef struct {
     unsigned int samples_per_tick;
 
     char* sf_file;
-    unsigned int preset_bank;
-    unsigned int preset_num;
+    int preset_bank;
+    int preset_num;
 } Plugin;
 
 static void cleanupFluidSynth(LV2_Handle instance) {
@@ -85,6 +85,7 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
     plugin->sequencer = new_fluid_sequencer2(true);
     plugin->synthSeqId = fluid_sequencer_register_fluidsynth(plugin->sequencer, plugin->synth);
     plugin->samples_per_tick = sample_rate/FLUID_TIME_SCALE;
+    plugin->preset_bank = plugin->preset_num = -1;
 
     for (int i =0; features[i]; i++) {
 //        printf("%s\n", features[i]->URI);
@@ -210,23 +211,25 @@ work(LV2_Handle                  instance,
 
     if (obj->body.otype == plugin->uris.patch_Set) {
         const LV2_Atom_Object* body = NULL;
-        const LV2_Atom* file_path = NULL;
+        const LV2_Atom* file_path_atom = NULL;
         lv2_atom_object_get(obj, plugin->uris.patch_body, &body, 0);
-        lv2_atom_object_get(body, plugin->uris.sf_file, &file_path, 0);
+        lv2_atom_object_get(body, plugin->uris.sf_file, &file_path_atom, 0);
 
-        if (!file_path) return LV2_WORKER_ERR_UNKNOWN;
+        if (!file_path_atom) return LV2_WORKER_ERR_UNKNOWN;
 
         int sf;
-        char* sf_name;
-        if (sf = fluid_synth_sfload(plugin->synth, LV2_ATOM_BODY(file_path), 1)) {
+        char *sf_name, *file_path;
+        file_path = LV2_ATOM_BODY(file_path_atom);
+        sf = fluid_synth_sfload(plugin->synth, file_path, 1);
+        if (sf != FLUID_FAILED) {
             fluid_synth_sfont_select(plugin->synth, 0, sf);
 
             fluid_sfont_t* sfont = fluid_synth_get_sfont(plugin->synth, 0);
             sf_name = sfont->get_name(sfont);
             plugin->soundfont_data.name = malloc(1+strlen(sf_name));
             strcpy(plugin->soundfont_data.name, sf_name);
-            plugin->sf_file = malloc(1+strlen(LV2_ATOM_BODY(file_path)));
-            strcpy(plugin->sf_file, LV2_ATOM_BODY(file_path));
+            plugin->sf_file = malloc(1+strlen(file_path));
+            strcpy(plugin->sf_file, file_path);
             sfont->iteration_start(sfont);
             fluid_preset_t preset;
             FluidPreset *first_preset=NULL;
@@ -251,6 +254,9 @@ work(LV2_Handle                  instance,
             }
 
             respond(handle, 0, NULL);
+        } else {
+            printf("Failed to load soundfont %s\n", file_path);
+            // TODO
         }
     } else {
         printf("Ignoring unknown message type %d\n", obj->body.otype);
@@ -312,19 +318,19 @@ save(LV2_Handle                 instance,
               plugin->uris.atom_Path,
               LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
-    if (plugin->preset_bank) {
+    if (plugin->preset_bank != -1) {
         store(handle,
               plugin->uris.sf_preset_bank,
               &plugin->preset_bank,
-              sizeof(unsigned int),
+              sizeof(int),
               plugin->uris.atom_Int,
               LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
-    if (plugin->preset_num) {
+    if (plugin->preset_num != -1) {
         store(handle,
               plugin->uris.sf_preset_num,
               &plugin->preset_num,
-              sizeof(unsigned int),
+              sizeof(int),
               plugin->uris.atom_Int,
               LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
     }
