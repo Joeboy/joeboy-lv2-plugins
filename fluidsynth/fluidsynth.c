@@ -12,6 +12,7 @@
 #include "fluidsynth.h"
 #include "uris.h"
 
+#define DEFAULT_PRESETLIST_BUFFER_SIZE 32768;
 
 
 static LV2_Descriptor *fluidDescriptor = NULL;
@@ -122,12 +123,13 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
     for (const LV2_Options_Option* o = options; o->key; o++) {
         //printf("%s:%s\n", unmap->unmap(unmap->handle, o->key), unmap->unmap(unmap->handle, o->type));
         if (o->key == sequence_size && o->type == atom_Int) {
-            plugin->presetlist_buffer_size = *(int*)o->value;
+            plugin->presetlist_buffer_size = *(uint32_t*)o->value;
         }
     }
 
+    if (!plugin->presetlist_buffer_size) plugin->presetlist_buffer_size=DEFAULT_PRESETLIST_BUFFER_SIZE;
     plugin->presetlist_buffer = malloc(plugin->presetlist_buffer_size);
-//    printf("%d\n", plugin->presetlist_buffer_size);
+//    printf("buf size:%d\n", plugin->presetlist_buffer_size);
     lv2_atom_forge_init(&plugin->forge, plugin->map);
     lv2_atom_forge_init(&plugin->presetlist_forge, plugin->map);
 
@@ -247,6 +249,7 @@ work(LV2_Handle                  instance,
         file_path = LV2_ATOM_BODY(file_path_atom);
         sf = fluid_synth_sfload(plugin->synth, file_path, 1);
         if (sf != FLUID_FAILED) {
+            // TODO: establish whether the atom will fit in the port buffer
             fluid_synth_sfont_select(plugin->synth, 0, sf);
             fluid_sfont_t* sfont = fluid_synth_get_sfont(plugin->synth, 0);
             sf_name = sfont->get_name(sfont);
