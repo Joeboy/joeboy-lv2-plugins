@@ -1,3 +1,5 @@
+#include "uris.h"
+
 #ifndef FLUIDSYNTH_H
 #define FLUIDSYNTH_H
 
@@ -17,6 +19,33 @@
 #define CHANNEL_PRESSURE        0xD0
 #define PITCH_BEND              0xE0
 #define MIDI_SYSTEM_RESET       0xFF
+
+
+LV2_Atom* sf_load_atom(LV2_Atom_Forge *forge, FluidSynthURIs uris, const char* filename, const uint32_t *bank, const uint32_t *num) {
+    LV2_Atom_Forge_Frame set_frame;
+    LV2_Atom* set_msg = (LV2_Atom*)lv2_atom_forge_resource(
+        forge, &set_frame, 1, uris.patch_Set);
+
+    lv2_atom_forge_property_head(forge, uris.patch_body, 0);
+    LV2_Atom_Forge_Frame body_frame;
+    lv2_atom_forge_blank(forge, &body_frame, 2, 0);
+
+    lv2_atom_forge_property_head(forge, uris.sf_file, 0);
+    lv2_atom_forge_path(forge, filename, strlen(filename));
+
+    if (bank) {
+        lv2_atom_forge_property_head(forge, uris.sf_preset_bank, 0);
+        lv2_atom_forge_int(forge, *bank);
+    }
+    if (num) {
+        lv2_atom_forge_property_head(forge, uris.sf_preset_num, 0);
+        lv2_atom_forge_int(forge, *num);
+    }
+
+    lv2_atom_forge_pop(forge, &body_frame);
+    lv2_atom_forge_pop(forge, &set_frame);
+    return set_msg;
+}
 
 
 typedef struct {

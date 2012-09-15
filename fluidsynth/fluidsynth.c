@@ -33,6 +33,7 @@ typedef struct {
     uint64_t frame_offset;
     uint8_t *presetlist_buffer;
     uint32_t presetlist_buffer_size;
+    uint8_t *loadsf_buffer;
 
     FluidSynthURIs uris;
     
@@ -53,6 +54,7 @@ static void cleanupFluidSynth(LV2_Handle instance) {
     delete_fluid_settings(plugin->settings);
     delete_fluid_sequencer(plugin->sequencer);
     free(plugin->presetlist_buffer);
+    free(plugin->loadsf_buffer);
     free(instance);
 }
 
@@ -108,7 +110,7 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
             unmap = (LV2_URID_Unmap*)features[i]->data;
         }
     }
-//    for (int i=0;i<35;i++) printf("%02x:%s\n", i, unmap->unmap(unmap->handle, i));
+    for (int i=0;i<35;i++) printf("%02x:%s\n", i, unmap->unmap(unmap->handle, i));
 
     if (plugin->map == 0) {
         fprintf(stderr, "Host does not support urid:map\n");
@@ -128,8 +130,9 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
     }
 
     if (!plugin->presetlist_buffer_size) plugin->presetlist_buffer_size=DEFAULT_PRESETLIST_BUFFER_SIZE;
-    plugin->presetlist_buffer = malloc(plugin->presetlist_buffer_size);
 //    printf("buf size:%d\n", plugin->presetlist_buffer_size);
+    plugin->presetlist_buffer = malloc(plugin->presetlist_buffer_size);
+    plugin->loadsf_buffer = malloc(512);
     lv2_atom_forge_init(&plugin->forge, plugin->map);
     lv2_atom_forge_init(&plugin->presetlist_forge, plugin->map);
 
@@ -226,6 +229,74 @@ static void runFluidSynth(LV2_Handle instance, uint32_t nframes) {
                             1);
 }
 
+int load_sf_file(LV2_Handle instance, LV2_Atom_Object* obj) {
+    Plugin *plugin = (Plugin*)instance;
+
+    const LV2_Atom_Object* body = NULL;
+    const LV2_Atom* file_path_atom = NULL;
+    LV2_Atom_Object *bank_atom = NULL, *num_atom = NULL;
+
+    lv2_atom_object_get(obj, plugin->uris.patch_body, &body, 0);
+    lv2_atom_object_get(body, plugin->uris.sf_file, &file_path_atom, 0);
+    const char* file_path = LV2_ATOM_BODY(file_path_atom);
+
+    int sf;
+    char *sf_name;
+    sf = fluid_synth_sfload(plugin->synth, file_path, 1);
+    if (sf != FLUID_FAILED) {
+        fluid_synth_sfont_select(plugin->synth, 0, sf);
+        fluid_sfont_t* sfont = fluid_synth_get_sfont(plugin->synth, 0);
+        sf_name = sfont->get_name(sfont);
+        plugin->sf_file = malloc(1+strlen(file_path));
+        strcpy(plugin->sf_file, file_path);
+        fluid_preset_t preset;
+
+        // TODO: establish whether the atom will fit in the port buffer
+        lv2_atom_forge_set_buffer(&plugin->presetlist_forge, plugin->presetlist_buffer, plugin->presetlist_buffer_size);
+        LV2_Atom_Forge_Frame loaded_frame;
+        LV2_Atom_Forge_Frame presetlist_frame;
+        LV2_Atom_Forge_Frame preset_frame;
+
+        lv2_atom_forge_blank(&plugin->presetlist_forge, &loaded_frame, 1, plugin->uris.sf_loaded);
+        lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_file, 0);
+        lv2_atom_forge_path(&plugin->presetlist_forge, sf_name, strlen(sf_name));
+
+        if (lv2_atom_object_get(body, plugin->uris.sf_preset_bank, &bank_atom, 0)) {
+            uint32_t bank, num;
+            bank = *(uint32_t*)LV2_ATOM_BODY(bank_atom);
+            lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_preset_bank, 0);
+            lv2_atom_forge_int(&plugin->presetlist_forge, *(uint32_t*)LV2_ATOM_BODY(bank_atom));
+            if (lv2_atom_object_get(body, plugin->uris.sf_preset_num, &num_atom, 0)) {
+                num = *(uint32_t*)LV2_ATOM_BODY(num_atom);
+                lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_preset_num, 0);
+                lv2_atom_forge_int(&plugin->presetlist_forge, *(uint32_t*)LV2_ATOM_BODY(num_atom));
+                fluid_synth_program_select(plugin->synth, 0, sfont->id, bank, num);
+            }
+        }
+
+        lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_preset_list, 0);
+        lv2_atom_forge_vector_head(&plugin->presetlist_forge, &presetlist_frame, sizeof(LV2_Atom_Tuple), plugin->forge.Tuple);
+        char* preset_name;
+        sfont->iteration_start(sfont);
+        int i = 0;
+        while(sfont->iteration_next(sfont, &preset)) {
+            lv2_atom_forge_tuple(&plugin->presetlist_forge, &preset_frame);
+            lv2_atom_forge_int(&plugin->presetlist_forge, preset.get_banknum(&preset));
+            lv2_atom_forge_int(&plugin->presetlist_forge, preset.get_num(&preset));
+            preset_name = preset.get_name(&preset);
+            lv2_atom_forge_string(&plugin->presetlist_forge, preset_name, strlen(preset_name));
+            lv2_atom_forge_pop(&plugin->presetlist_forge, &preset_frame);
+            i++;
+//                if (i>=8) break; // crappy buffer overflow protection
+        }
+        lv2_atom_forge_pop(&plugin->presetlist_forge, &presetlist_frame);
+        lv2_atom_forge_pop(&plugin->presetlist_forge, &loaded_frame);
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static LV2_Worker_Status
 work(LV2_Handle                  instance,
      LV2_Worker_Respond_Function respond,
@@ -237,62 +308,10 @@ work(LV2_Handle                  instance,
     LV2_Atom_Object* obj = (LV2_Atom_Object*)data;
 
     if (obj->body.otype == plugin->uris.patch_Set) {
-        const LV2_Atom_Object* body = NULL;
-        const LV2_Atom* file_path_atom = NULL;
-        lv2_atom_object_get(obj, plugin->uris.patch_body, &body, 0);
-        lv2_atom_object_get(body, plugin->uris.sf_file, &file_path_atom, 0);
-
-        if (!file_path_atom) return LV2_WORKER_ERR_UNKNOWN;
-
-        int sf;
-        char *sf_name, *file_path;
-        file_path = LV2_ATOM_BODY(file_path_atom);
-        sf = fluid_synth_sfload(plugin->synth, file_path, 1);
-        if (sf != FLUID_FAILED) {
-            // TODO: establish whether the atom will fit in the port buffer
-            fluid_synth_sfont_select(plugin->synth, 0, sf);
-            fluid_sfont_t* sfont = fluid_synth_get_sfont(plugin->synth, 0);
-            sf_name = sfont->get_name(sfont);
-            plugin->sf_file = malloc(1+strlen(file_path));
-            strcpy(plugin->sf_file, file_path);
-            fluid_preset_t preset;
-
-            const uint32_t capacity = 16384;//plugin->notify_port->atom.size;
-            lv2_atom_forge_set_buffer(&plugin->presetlist_forge, plugin->presetlist_buffer, capacity);
-            LV2_Atom_Forge_Frame loaded_frame;
-            LV2_Atom_Forge_Frame presetlist_frame;
-            LV2_Atom_Forge_Frame preset_frame;
-
-            lv2_atom_forge_blank(&plugin->presetlist_forge, &loaded_frame, 1, plugin->uris.sf_loaded);
-            lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_file, 0);
-            lv2_atom_forge_path(&plugin->presetlist_forge, sf_name, strlen(sf_name));
-
-            lv2_atom_forge_property_head(&plugin->presetlist_forge, plugin->uris.sf_preset_list, 0);
-            lv2_atom_forge_vector_head(&plugin->presetlist_forge, &presetlist_frame, sizeof(LV2_Atom_Tuple), plugin->forge.Tuple);
-            char* preset_name;
-            sfont->iteration_start(sfont);
-            int i = 0;
-            while(sfont->iteration_next(sfont, &preset)) {
-                lv2_atom_forge_tuple(&plugin->presetlist_forge, &preset_frame);
-                lv2_atom_forge_int(&plugin->presetlist_forge, preset.get_banknum(&preset));
-                lv2_atom_forge_int(&plugin->presetlist_forge, preset.get_num(&preset));
-                preset_name = preset.get_name(&preset);
-                lv2_atom_forge_string(&plugin->presetlist_forge, preset_name, strlen(preset_name));
-                lv2_atom_forge_pop(&plugin->presetlist_forge, &preset_frame);
-                i++;
-//                if (i>=8) break; // crappy buffer overflow protection
-            }
-//            if (first_preset) {
-//                fluid_synth_bank_select(plugin->synth, 0, first_preset->bank);
-//                fluid_synth_program_change(plugin->synth, 0, first_preset->num);
-//            }
-            lv2_atom_forge_pop(&plugin->presetlist_forge, &presetlist_frame);
-            lv2_atom_forge_pop(&plugin->presetlist_forge, &loaded_frame);
-
+        if (load_sf_file(instance, obj)) {
             respond(handle, 0, NULL);
         } else {
-            printf("Failed to load soundfont %s\n", file_path);
-            // TODO
+            printf("Error loading file\n");
         }
     } else {
         printf("Ignoring unknown message type %d\n", obj->body.otype);
@@ -359,13 +378,22 @@ restore(LV2_Handle                  instance,
 {
     Plugin* plugin = (Plugin*)instance;
 
-    size_t      size;
-    uint32_t    type;
+    size_t      filename_size, bank_size, num_size;
+    uint32_t    filename_type, bank_type, num_type;
     uint32_t    valflags;
-    const char* sf_file = retrieve(
-        handle, plugin->uris.sf_file, &size, &type, &valflags);
-    printf("TODO: restore: sf_file=%s\n", sf_file);
-    // TODO
+    const char* sf_filename = retrieve(handle, plugin->uris.sf_file, &filename_size, &filename_type, &valflags);
+    uint32_t *bank = (uint32_t*)retrieve(handle, plugin->uris.sf_preset_bank, &bank_size, &bank_type, &valflags);
+    uint32_t *num = (uint32_t*)retrieve(handle, plugin->uris.sf_preset_num, &num_size, &num_type, &valflags);
+
+
+    if (sf_filename) {
+        printf("restoring %d:%d:%s\n", *bank, *num, sf_filename);
+        LV2_Atom* set_message;
+        lv2_atom_forge_set_buffer(&plugin->forge, plugin->loadsf_buffer, 512);
+        lv2_atom_forge_frame_time(&plugin->forge, plugin->frame_offset);
+        set_message = sf_load_atom(&plugin->forge, plugin->uris, sf_filename, bank, num);
+        plugin->schedule->schedule_work(plugin->schedule->handle, lv2_atom_total_size(set_message), set_message);
+    }
 
     return LV2_STATE_SUCCESS;
 }
