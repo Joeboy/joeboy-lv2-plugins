@@ -178,6 +178,7 @@ static LV2UI_Handle instantiate(const struct _LV2UI_Descriptor * descriptor,
     ui->controller = controller;
     ui->write_function = write_function;
     ui->soundfont_data.name = NULL;
+    ui->soundfont_data.preset_list = NULL;
 
     *widget = (LV2UI_Widget)make_gui(ui);
     return (LV2UI_Handle)ui;
@@ -197,10 +198,11 @@ static void port_event(LV2UI_Handle ui_handle,
                const void * buffer) {
 
     Ui *ui = (Ui*) ui_handle;
+    if (port_index != NOTIFY) return;
     if (format==ui->uris.atom_eventTransfer) {
         LV2_Atom_Object* obj = (LV2_Atom_Object*) buffer;
         if (obj->body.otype != ui->uris.sf_loaded) {
-            fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
+//            fprintf(stderr, "Ignoring unknown message type %d\n", obj->body.otype);
             return;
         }
 
@@ -213,6 +215,8 @@ static void port_event(LV2UI_Handle ui_handle,
         free_soundfont_data(ui->soundfont_data);
         ui->soundfont_data.name = malloc(1+strlen(sf_name));
         strcpy(ui->soundfont_data.name, sf_name);
+        printf("loading %s\n", sf_name);
+        printf("atom size: %d\n", lv2_atom_total_size(buffer));
 
         LV2_Atom_Object *selected_bank_atom = NULL, *selected_num_atom = NULL;
         uint32_t selected_bank, selected_num;
@@ -224,7 +228,10 @@ static void port_event(LV2UI_Handle ui_handle,
         }
 
         const LV2_Atom_Object* sf_preset_list = NULL;
-        lv2_atom_object_get(obj, ui->uris.sf_preset_list, &sf_preset_list, 0);
+        if (!lv2_atom_object_get(obj, ui->uris.sf_preset_list, &sf_preset_list, 0)) {
+            printf("No preset list found\n");
+            return;
+        }
         LV2_Atom_Vector_Body* presets  = (LV2_Atom_Vector_Body*)LV2_ATOM_BODY(sf_preset_list);
 
         LV2_Atom_Tuple* tup = (LV2_Atom_Tuple*)(1+presets);

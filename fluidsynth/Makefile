@@ -8,7 +8,7 @@ $(BUNDLE): manifest.ttl fluidsynth.ttl fluidsynth.so fluidsynth_ui.so
 	cp manifest.ttl fluidsynth.ttl fluidsynth.so fluidsynth_ui.so $(BUNDLE)
 
 fluidsynth.so: fluidsynth.c
-	gcc -std=c99 -shared -fPIC -DPIC fluidsynth.c `pkg-config --cflags --libs lv2-plugin fluidsynth` -o fluidsynth.so -lm
+	gcc -std=c99 -shared -fPIC -DPIC fluidsynth.c `pkg-config --cflags --libs lv2 fluidsynth` -o fluidsynth.so -lm
 
 fluidsynth_ui.so: fluidsynth_ui.c uris.h
 	gcc -g -std=c99 -shared -fPIC -DPIC fluidsynth_ui.c `pkg-config --cflags --libs gtk+-2.0` -o fluidsynth_ui.so

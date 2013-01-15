@@ -110,7 +110,10 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
             unmap = (LV2_URID_Unmap*)features[i]->data;
         }
     }
-    for (int i=0;i<35;i++) printf("%02x:%s\n", i, unmap->unmap(unmap->handle, i));
+//    for (int i=0;;i++) {
+//        if (i>0 && !unmap->unmap(unmap->handle, i)) break;
+//        printf("%02x:%s\n", i, unmap->unmap(unmap->handle, i));
+//    }
 
     if (plugin->map == 0) {
         fprintf(stderr, "Host does not support urid:map\n");
@@ -129,10 +132,10 @@ instantiateFluidSynth( const LV2_Descriptor *desc, double sample_rate,
         }
     }
 
+    printf("buf size:%d\n", plugin->presetlist_buffer_size);
     if (!plugin->presetlist_buffer_size) plugin->presetlist_buffer_size=DEFAULT_PRESETLIST_BUFFER_SIZE;
-//    printf("buf size:%d\n", plugin->presetlist_buffer_size);
     plugin->presetlist_buffer = malloc(plugin->presetlist_buffer_size);
-    plugin->loadsf_buffer = malloc(512);
+    plugin->loadsf_buffer = malloc(512); // space to hold filename, bank and patch no
     lv2_atom_forge_init(&plugin->forge, plugin->map);
     lv2_atom_forge_init(&plugin->presetlist_forge, plugin->map);
 
@@ -287,10 +290,13 @@ int load_sf_file(LV2_Handle instance, LV2_Atom_Object* obj) {
             lv2_atom_forge_string(&plugin->presetlist_forge, preset_name, strlen(preset_name));
             lv2_atom_forge_pop(&plugin->presetlist_forge, &preset_frame);
             i++;
-//                if (i>=8) break; // crappy buffer overflow protection
+                if (i>=2) break; // temporary buffer overflow workaround
         }
         lv2_atom_forge_pop(&plugin->presetlist_forge, &presetlist_frame);
         lv2_atom_forge_pop(&plugin->presetlist_forge, &loaded_frame);
+        lv2_atom_forge_set_buffer(&plugin->forge,
+                                  (uint8_t*)plugin->notify_port,
+                                  plugin->notify_buffer_size);
         return true;
     } else {
         return false;
@@ -314,7 +320,7 @@ work(LV2_Handle                  instance,
             printf("Error loading file\n");
         }
     } else {
-        printf("Ignoring unknown message type %d\n", obj->body.otype);
+//        printf("Ignoring unknown message type %d\n", obj->body.otype);
     }
 
     return LV2_WORKER_SUCCESS;
@@ -326,9 +332,8 @@ work_response(LV2_Handle  instance,
               uint32_t    size,
               const void* data) {
     Plugin* plugin = (Plugin*)instance;
-    LV2_Atom* a = (LV2_Atom*)plugin->presetlist_buffer;
     lv2_atom_forge_frame_time(&plugin->forge, plugin->frame_offset);
-    memcpy((uint8_t*)plugin->forge.buf+plugin->forge.offset, plugin->presetlist_buffer, a->size);
+    lv2_atom_forge_write(&plugin->forge, plugin->presetlist_buffer, lv2_atom_total_size((LV2_Atom*)plugin->presetlist_buffer));
     return LV2_WORKER_SUCCESS;
 }
 

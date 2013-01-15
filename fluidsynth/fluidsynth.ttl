@@ -8,7 +8,7 @@
 @prefix urid: <http://lv2plug.in/ns/ext/urid#>.
 @prefix work: <http://lv2plug.in/ns/ext/worker#> .
 @prefix state: <http://lv2plug.in/ns/ext/state#> .
-
+@prefix rsz:  <http://lv2plug.in/ns/ext/resize-port/#> .
 
 
 <http://www.joebutton.co.uk/software/lv2/fluidsynth/out> a pg:StereoGroup.
@@ -55,13 +55,13 @@
   ], 
 
   [
-        a lv2:OutputPort ,
-            atom:AtomPort ;
-        atom:bufferType atom:Sequence ;
+     a lv2:OutputPort, atom:AtomPort ;
+     atom:bufferType atom:Sequence ;
 #        atom:supports <http://lv2plug.in/ns/ext/patch#Message> ;
-        lv2:index 3 ;
-        lv2:symbol "notify" ;
-        lv2:name "Notify"
+     lv2:index 3 ;
+     lv2:symbol "notify" ;
+     lv2:name "Notify" ;
+     rsz:minimumSize 65536
    ].
 
 
