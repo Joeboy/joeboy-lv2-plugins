@@ -8,7 +8,7 @@ $(BUNDLE): manifest.ttl pitchdetect.ttl pitchdetect.so
 	cp manifest.ttl pitchdetect.ttl pitchdetect.so $(BUNDLE)
 
 pitchdetect.so: pitchdetect.c
-	gcc -shared -fPIC -DPIC pitchdetect.c `pkg-config --cflags --libs lv2-plugin aubio` -o pitchdetect.so
+	gcc -shared -fPIC -DPIC pitchdetect.c `pkg-config --cflags --libs lv2core aubio` -o pitchdetect.so
 
 install: $(BUNDLE)
 	mkdir -p $(INSTALL_DIR)
