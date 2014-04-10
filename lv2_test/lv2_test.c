@@ -45,12 +45,6 @@ int run_plugin(Lv2TestSetup setup) {
     lv2_InputPort   = lilv_new_uri(world, LV2_CORE__InputPort);
     lv2_OutputPort  = lilv_new_uri(world, LV2_CORE__OutputPort);
     urid_map        = lilv_new_uri(world, LV2_URID__map);
-    const LilvPlugins* plugins = lilv_world_get_all_plugins(world);
-    const LilvPlugin* plugin = lilv_plugins_get_by_uri (plugins, lilv_new_uri(world, setup.plugin_uri));
-
-    const char* plugin_uri = lilv_node_as_string(lilv_plugin_get_uri(plugin));
-    const char* plugin_name = lilv_node_as_string(lilv_plugin_get_name(plugin));
-
     URITable uri_table;
     uri_table_init(&uri_table);
 
@@ -60,10 +54,16 @@ int run_plugin(Lv2TestSetup setup) {
     LV2_Feature        unmap_feature = { LV2_URID_UNMAP_URI, &unmap };
     const LV2_Feature* features[]    = { &map_feature, &unmap_feature, NULL };
 
-    LV2_Atom_Sequence seq = {
-        { sizeof(LV2_Atom_Sequence_Body),
-          uri_table_map(&uri_table, LV2_ATOM__Sequence) },
-        { 0, 0 } };
+    const LilvPlugins* plugins = lilv_world_get_all_plugins(world);
+    const LilvPlugin* plugin = lilv_plugins_get_by_uri (plugins, lilv_new_uri(world, setup.plugin_uri));
+
+    const char* plugin_uri = lilv_node_as_string(lilv_plugin_get_uri(plugin));
+    const char* plugin_name = lilv_node_as_string(lilv_plugin_get_name(plugin));
+
+//    LV2_Atom_Sequence seq = {
+//        { sizeof(LV2_Atom_Sequence_Body),
+//          uri_table_map(&uri_table, LV2_ATOM__Sequence) },
+//        { 0, 0 } };
 
     LilvNodes*  required = lilv_plugin_get_required_features(plugin);
     LILV_FOREACH(nodes, i, required) {
@@ -82,17 +82,24 @@ int run_plugin(Lv2TestSetup setup) {
         return 0;
     }
 
-    float* controls = (float*)calloc(lilv_plugin_get_num_ports(plugin), sizeof(float));
-    lilv_plugin_get_port_ranges_float(plugin, NULL, NULL, controls);
+//    float* controls = (float*)calloc(lilv_plugin_get_num_ports(plugin), sizeof(float));
+//    lilv_plugin_get_port_ranges_float(plugin, NULL, NULL, controls);
 
     const uint32_t n_ports = lilv_plugin_get_num_ports(plugin);
     for (uint32_t index=0;index < n_ports; ++index) {
         // Does our setup contain a port buffer for this port?
+        int found = 0;
         for (Lv2PortBufData** portdata = setup.lv2_port_buffers; *portdata; portdata++) {
             if ((*portdata)->index == index) {
+                found = 1;
                 lilv_instance_connect_port(instance, index, (*portdata)->data);
+//                printf("%d: %f\n", index, *(float*)(*portdata)->data);
+//                printf("%d: %x\n", index, (*portdata)->data);
                 break;
             }
+        }
+        if (!found) {
+            printf("Port buffer not found:%d\n", index);
         }
     }
 
@@ -133,7 +140,7 @@ int run_plugin(Lv2TestSetup setup) {
     lilv_instance_deactivate(instance);
     lilv_instance_free(instance);
     uri_table_destroy(&uri_table);
-    free(controls);
+//    free(controls);
 
     lilv_node_free(urid_map);
     lilv_node_free(lv2_OutputPort);

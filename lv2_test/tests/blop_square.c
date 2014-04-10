@@ -18,7 +18,7 @@
 #include <stdio.h>
 #include <aubio/aubio.h>
 #include <assert.h>
-#include "lv2_test.h"
+#include "../lv2_test.h"
 
 
 int main(int argc, char** argv) {
