@@ -23,19 +23,21 @@
 
 int main(int argc, char** argv) {
     uint32_t block_size = 512;
-    float* drive_in = (float*)malloc(block_size * sizeof(float));
+    uint32_t total_samples = 16384;
+    uint32_t num_blocks = total_samples / block_size;
+    float* drive_in = (float*)malloc(total_samples * sizeof(float));
     Lv2PortBufData drive_in_buf = {0, (void*)drive_in};
-    float* thresh_in = (float*)malloc(sizeof(float));
+    float* thresh_in = (float*)malloc(num_blocks * sizeof(float));
     Lv2PortBufData thresh_in_buf = {1, (void*)thresh_in};
-    float* attack_in = (float*)malloc(sizeof(float));
+    float* attack_in = (float*)malloc(num_blocks * sizeof(float));
     Lv2PortBufData attack_in_buf = {2, (void*)attack_in};
-    float* decay_in = (float*)malloc(sizeof(float));
+    float* decay_in = (float*)malloc(num_blocks * sizeof(float));
     Lv2PortBufData decay_in_buf = {3, (void*)decay_in};
-    float* sustain_in = (float*)malloc(sizeof(float));
+    float* sustain_in = (float*)malloc(num_blocks * sizeof(float));
     Lv2PortBufData sustain_in_buf = {4, (void*)sustain_in};
-    float* release_in = (float*)malloc(sizeof(float));
+    float* release_in = (float*)malloc(num_blocks * sizeof(float));
     Lv2PortBufData release_in_buf = {5, (void*)release_in};
-    float* env_out = (float*)malloc(block_size * sizeof(float));
+    float* env_out = (float*)malloc(total_samples * sizeof(float));
     Lv2PortBufData env_out_buf = {6, (void*)env_out};
 
     memset(drive_in, 0, block_size * sizeof(float));
@@ -59,6 +61,7 @@ int main(int argc, char** argv) {
     Lv2TestSetup setup = {
         "http://drobilla.net/plugins/blop/adsr",
         block_size,
+        total_samples,
         48000,
         (Lv2PortBufData**)&bufs
     };

@@ -23,6 +23,7 @@
 #include "lv2/lv2plug.in/ns/ext/atom/atom.h"
 #include "uri_table.h"
 #include "lv2_test.h"
+#include "assert.h"
 
 static LilvNode* atom_AtomPort   = NULL;
 static LilvNode* atom_Sequence   = NULL;
@@ -82,27 +83,6 @@ int run_plugin(Lv2TestSetup setup) {
         return 0;
     }
 
-//    float* controls = (float*)calloc(lilv_plugin_get_num_ports(plugin), sizeof(float));
-//    lilv_plugin_get_port_ranges_float(plugin, NULL, NULL, controls);
-
-    const uint32_t n_ports = lilv_plugin_get_num_ports(plugin);
-    for (uint32_t index=0;index < n_ports; ++index) {
-        // Does our setup contain a port buffer for this port?
-        int found = 0;
-        for (Lv2PortBufData** portdata = setup.lv2_port_buffers; *portdata; portdata++) {
-            if ((*portdata)->index == index) {
-                found = 1;
-                lilv_instance_connect_port(instance, index, (*portdata)->data);
-//                printf("%d: %f\n", index, *(float*)(*portdata)->data);
-//                printf("%d: %x\n", index, (*portdata)->data);
-                break;
-            }
-        }
-        if (!found) {
-            printf("Port buffer not found:%d\n", index);
-        }
-    }
-
     /*
     for (uint32_t index = 0; index < n_ports; ++index) {
         const LilvPort* port = lilv_plugin_get_port_by_index(plugin, index);
@@ -135,7 +115,37 @@ int run_plugin(Lv2TestSetup setup) {
 
     lilv_instance_activate(instance);
 
-    lilv_instance_run(instance, setup.block_size);
+    assert (setup.total_samples % setup.block_size == 0);
+    uint32_t num_blocks = setup.total_samples / setup.block_size;
+
+    const uint32_t n_ports = lilv_plugin_get_num_ports(plugin);
+    const LilvPort *port;
+    uint32_t offset;
+    for (uint32_t block=0;block<num_blocks;block++) {
+        for (uint32_t index=0;index < n_ports; ++index) {
+            // Does our setup contain a port buffer for this port?
+            port = lilv_plugin_get_port_by_index(plugin, index);
+            int found = 0;
+            for (Lv2PortBufData** portdata = setup.lv2_port_buffers; *portdata; portdata++) {
+                if ((*portdata)->index == index) {
+                    found = 1;
+                    if (lilv_port_is_a(plugin, port, lv2_ControlPort)) {
+    //                    lilv_instance_connect_port(instance, index, &controls[index]);
+                        offset = block * sizeof(float);
+                    } else if (lilv_port_is_a(plugin, port, lv2_AudioPort) ||
+                               lilv_port_is_a(plugin, port, lv2_CVPort)) {
+                        offset = block * setup.block_size * sizeof(float);
+                    }
+                    lilv_instance_connect_port(instance, index, (*portdata)->data + offset);
+                    break;
+                }
+            }
+            assert(found);
+        }
+        lilv_instance_run(instance, setup.block_size);
+    }
+
+
 
     lilv_instance_deactivate(instance);
     lilv_instance_free(instance);

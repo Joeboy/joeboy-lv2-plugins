@@ -13,25 +13,10 @@
   ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
   OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
+#define SAMPLE_RATE 48000
+#define PI 3.14159265
 
-#ifndef LV2_TEST_H
-#define LV2_TEST_H
 
-#include <stdint.h>
-
-typedef struct {
-    uint32_t index;
-    void* data;
-} Lv2PortBufData;
-
-typedef struct {
-	char* plugin_uri;
-    uint32_t block_size;
-    uint32_t total_samples;
-    uint32_t sample_rate;
-    Lv2PortBufData** lv2_port_buffers;
-} Lv2TestSetup;
-
-int run_plugin(Lv2TestSetup setup);
-
-#endif  /* LV2_TEST_H */
+int play_audio(float *buf, uint32_t nsamples);
+int generate_beep(float *buf, uint32_t nsamples, uint32_t freq, float volume);
+int generate_bleepy_noise(float *buf, uint32_t nsamples);

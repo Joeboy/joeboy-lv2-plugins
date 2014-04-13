@@ -19,28 +19,37 @@
 #include <aubio/aubio.h>
 #include <assert.h>
 #include "../lv2_test.h"
+#include "../audio_io.h"
 
 
 int main(int argc, char** argv) {
     // Check that the blop square wave generator, when a frequency is requested
     // by the input, generates an output which aubio identifies as a tone of
     // approximately that frequency
-    float freq = 500;
     uint32_t block_size = 1024;
-    float* out = (float*)malloc(block_size * sizeof(float));
-    Lv2PortBufData in_buf = {0, &freq};
+    uint32_t total_samples = 65536;
+    uint32_t num_blocks = total_samples / block_size;
+    float *freq_in = malloc(sizeof(float) * num_blocks);
+    float *out = (float*)malloc(total_samples * sizeof(float));
+    float freq = 500;
+    for (uint32_t i=0;i< num_blocks;i++) {
+        freq_in[i] = freq;
+    }
+    Lv2PortBufData freq_in_buf = {0, freq_in};
     Lv2PortBufData out_buf = {1, (void*)out};
-    Lv2PortBufData* bufs[] = {&in_buf, &out_buf, NULL};
+    Lv2PortBufData* bufs[] = {&freq_in_buf, &out_buf, NULL};
 
     Lv2TestSetup setup = {
         "http://drobilla.net/plugins/blop/square",
         block_size,
+        total_samples,
         48000,
         (Lv2PortBufData**)&bufs
     };
 
     // Run the plugin
     assert(run_plugin(setup));
+//    play_audio(out, total_samples);
 
     // Use aubio to check that the output looks like it's within a few hz of
     // the frequency we requested:
