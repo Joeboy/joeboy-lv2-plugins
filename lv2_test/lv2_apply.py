@@ -132,7 +132,7 @@ def main():
                 control_input_buffers.append(numpy.array([default], numpy.float32))
                 instance.connect_port(index, control_input_buffers[-1])
             else:
-                raise Exception, "Unhandled port type"
+                raise ValueError("Unhandled port type")
         elif port.is_a(lv2_OutputPort):
             if port.is_a(lv2_AudioPort):
                 audio_output_buffers.append(numpy.array([0] * wav_in.nframes, numpy.float32))
@@ -141,7 +141,7 @@ def main():
                 control_output_buffers.append(numpy.array([0], numpy.float32))
                 instance.connect_port(index, control_output_buffers[-1])
             else:
-                raise Exception, "Unhandled port type"
+                raise ValueError("Unhandled port type")
 
     # Run the plugin:
     instance.run(wav_in.nframes)
