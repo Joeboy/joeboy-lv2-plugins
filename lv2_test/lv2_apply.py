@@ -7,29 +7,49 @@ import wave
 import numpy
 
 
-def read_wav(wf, nframes):
-    """Read data from an open wav file. Return a list of channels, where each
-    channel is a list of float samples."""
-    wav = wf.readframes(nframes)
-    sampwidth = wf.getsampwidth()
-    print "sampwidth=", sampwidth
-    if sampwidth == 4:
-        wav = wave.struct.unpack("<%ul" % (len(wav) / 4), wav)
-        wav = [ i / float(2**32) for i in wav ]
-    elif sampwidth == 2:
-        wav = wave.struct.unpack("<%uh" % (len(wav) / 2), wav)
-        wav = [ i / float(2**16) for i in wav ]
-    else:
-        wav = wave.struct.unpack("%uB"  % (len(wav)),     wav)
-        wav = [ s - 128 for s in wav ]
-        wav = [ i / float(2**8) for i in wav ]
+class WavFile(object):
+    """Helper class for accessing wav file data. Should work on most common
+    formats (8 bit unsigned, 16 bit signed, 16 bit signed). Audio data is
+    converted to float32."""
 
-    n_channels = wf.getnchannels()
-    channels = []
-    for i in xrange(n_channels):
-        channels.append([ wav[j] for j in xrange(0, len(wav), n_channels) ])
+    # (struct format code, is_signed, data type) for each sample width:
+    WAV_SPECS = {
+        1: ("B", False, numpy.uint8),
+        2: ("h", True, numpy.int16),
+        4: ("l", True, numpy.int32),
+    }
 
-    return sampwidth, channels
+    def __init__(self, wav_in_path):
+        self.wav_in = wave.open(wav_in_path, 'r')
+        self.framerate = self.wav_in.getframerate()
+        self.nframes = self.wav_in.getnframes()
+        self.nchannels = self.wav_in.getnchannels()
+        self.sampwidth = self.wav_in.getsampwidth()
+        wav_spec = self.WAV_SPECS[self.sampwidth]
+        self.struct_fmt_code, self.signed, self.data_type = wav_spec
+        self.range = 2 ** (8*self.sampwidth)
+
+
+    def read(self):
+        """Read data from an open wav file. Return a list of channels, where each
+        channel is a list of floats."""
+        raw_bytes = self.wav_in.readframes(self.nframes)
+        struct_fmt = "%u%s" % (len(raw_bytes) / self.sampwidth, self.struct_fmt_code)
+        data = wave.struct.unpack(struct_fmt, raw_bytes)
+        if self.signed:
+            data = [i / float(self.range/2) for i in data]
+        else:
+            data = [(i - float(range/2)) / float(range/2) for i in data]
+
+        channels = []
+        for i in xrange(self.nchannels):
+            channels.append([ data[j] for j in xrange(0, len(data), self.nchannels) ])
+
+        return channels
+
+    def close(self):
+        self.wav_in.close()
+
 
 def main():
     # Read command line arguments
@@ -65,13 +85,15 @@ def main():
         sys.exit(1)
 
     # Open input file
-    wav_in = wave.open(wav_in_path, 'r')
-    if not wav_in:
+    try:
+        wav_in = WavFile(wav_in_path)
+    except:
         print("Failed to open input `%s'\n" % wav_in_path)
         sys.exit(1)
-    if wav_in.getnchannels() != n_audio_in:
+
+    if wav_in.nchannels != n_audio_in:
         print("Input has %d channels, but plugin has %d audio inputs\n" % (
-            wav_in.getnchannels(), n_audio_in))
+            wav_in.nchannels, n_audio_in))
         sys.exit(1)
 
     # Open output file
@@ -81,21 +103,22 @@ def main():
         sys.exit(1)
 
     # Set output file to same format as input (except possibly nchannels)
-    wav_out.setparams(wav_in.getparams())
+    wav_out.setparams(wav_in.wav_in.getparams())
     wav_out.setnchannels(n_audio_out)
-
-    rate    = wav_in.getframerate()
-    nframes = wav_in.getnframes()
+    wav_out.setnframes(0)
 
     print('%s => %s => %s @ %d Hz'
-          % (wav_in_path, plugin.get_name(), wav_out_path, rate))
+          % (wav_in_path, plugin.get_name(), wav_out_path, wav_in.framerate))
 
-    instance = lilv.Instance(plugin, rate)
+    instance = lilv.Instance(plugin, wav_in.framerate)
 
-    sampwidth, channels = read_wav(wav_in, nframes)
+    channels = wav_in.read()
+    wav_in.close()
+
     buf_size = len(channels[0])
 
-    # Connect buffers. NB if we fail to connect any buffer, lilv will segfault.
+    # Connect all ports to buffers. NB if we fail to connect any buffer, lilv
+    # will segfault.
     audio_input_buffers = []
     audio_output_buffers = []
     control_input_buffers = []
@@ -109,7 +132,6 @@ def main():
             elif port.is_a(lv2_ControlPort):
                 #if port.has_property(lv2_DefaultProperty):  # Doesn't seem to work
                 default = lilv.lilv_node_as_float(lilv.lilv_nodes_get_first(port.get_value(lv2_DefaultProperty)))
-                print "def: ",default
                 control_input_buffers.append(numpy.array([default], numpy.float32))
                 instance.connect_port(index, control_input_buffers[-1])
             else:
@@ -124,19 +146,22 @@ def main():
             else:
                 raise Exception, "Unhandled port type"
 
-    print len(audio_input_buffers)
-    print len(audio_output_buffers)
     # Run the plugin:
     instance.run(buf_size)
 
-    # Write the output file:
-    print len(audio_output_buffers), len(audio_input_buffers)
-    print sampwidth
-    for buf in audio_output_buffers:
-#        buf *= 2 ** (8 * sampwidth)
-        buf *= 32768
-        out = buf.astype(numpy.short)
-        wav_out.writeframes(out)
+    # Interleave output buffers:
+    data = numpy.dstack(audio_output_buffers).flatten()
+
+    # Convert to original int type:
+    if wav_in.signed:
+        data = data * float(wav_in.range / 2)
+    else:
+        data = (data + 1) * float(wav_in.range/2)
+    out = data.astype(wav_in.data_type)
+
+    # Write output file:
+    wav_out.writeframes(out)
+    wav_out.close()
 
 
 if __name__ == "__main__":
