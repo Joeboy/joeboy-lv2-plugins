@@ -34,8 +34,8 @@ class WavFile(object):
         """Read data from an open wav file. Return a list of channels, where each
         channel is a list of floats."""
         raw_bytes = self.wav_in.readframes(self.nframes)
-        self.struct_fmt = "%u%s" % (len(raw_bytes) / self.sampwidth, self.struct_fmt_code)
-        data = wave.struct.unpack(self.struct_fmt, raw_bytes)
+        struct_fmt = "%u%s" % (len(raw_bytes) / self.sampwidth, self.struct_fmt_code)
+        data = wave.struct.unpack(struct_fmt, raw_bytes)
         if self.signed:
             data = [i / float(self.range/2) for i in data]
         else:
@@ -155,8 +155,10 @@ def main():
     else:
         data = (data + 1) * float(wav_in.range/2)
 
-    # Write output file:
-    wav_out.writeframes(wave.struct.pack(wav_in.struct_fmt, *data))
+    # Write output file in chunks to stop memory usage getting out of hand:
+    CHUNK_SIZE = 8192
+    for chunk in numpy.array_split(data, CHUNK_SIZE):
+        wav_out.writeframes(wave.struct.pack("%u%s" % (len(chunk), wav_in.struct_fmt_code), *chunk))
     wav_out.close()
 
 
