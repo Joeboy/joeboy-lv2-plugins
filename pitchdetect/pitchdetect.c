@@ -1,6 +1,6 @@
 #include <lv2.h>
 #include <aubio/aubio.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 
 #define PITCHDETECTOR_URI       "http://www.joebutton.co.uk/software/lv2/pitchdetect"
