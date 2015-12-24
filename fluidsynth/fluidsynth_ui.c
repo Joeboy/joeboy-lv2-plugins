@@ -178,6 +178,7 @@ static LV2UI_Handle instantiate(const struct _LV2UI_Descriptor * descriptor,
     ui->controller = controller;
     ui->write_function = write_function;
     ui->soundfont_data.name = NULL;
+    ui->soundfont_data.preset_list = NULL;
 
     *widget = (LV2UI_Widget)make_gui(ui);
     return (LV2UI_Handle)ui;
