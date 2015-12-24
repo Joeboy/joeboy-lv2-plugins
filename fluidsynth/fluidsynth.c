@@ -1,5 +1,5 @@
 #include <lv2.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <fluidsynth.h>
 #include "lv2/lv2plug.in/ns/ext/worker/worker.h"
 #include "lv2/lv2plug.in/ns/ext/urid/urid.h"
