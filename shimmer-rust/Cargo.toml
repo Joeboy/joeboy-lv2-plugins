@@ -1,0 +1,12 @@
+[package]
+
+name = "lv2_shimmer_rust"
+version = "0.0.1"
+authors = [ "Joe Button <joe@joebutton.co.uk>" ]
+
+[dependencies]
+libc = "*"
+
+[lib]
+name="shimmer_rust"
+crate-type=["dylib"]
