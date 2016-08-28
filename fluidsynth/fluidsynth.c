@@ -387,7 +387,7 @@ restore(LV2_Handle                  instance,
 
 
     if (sf_filename) {
-        printf("restoring %d:%d:%s\n", *bank, *num, sf_filename);
+        printf("restoring %lu:%lu:%s\n", bank, num, sf_filename);
         LV2_Atom* set_message;
         lv2_atom_forge_set_buffer(&plugin->forge, plugin->loadsf_buffer, 512);
         lv2_atom_forge_frame_time(&plugin->forge, plugin->frame_offset);
